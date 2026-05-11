@@ -4,7 +4,9 @@ import re
 from .utils import parse_email
 
 # tests conducted on content.py:
-# 1. test content score for email with phishing keywords
+# 1. parse email for phishing keywords
+# 2. check if email is in unexpected language (lang is not heb/eng)
+# 3. detect HTML obfuscation techniques (invisible text, tiny fonts, base64 encoding)
 
 # English phishing keywords
 ENGLISH_PHISHING_KEYWORDS = {
@@ -72,8 +74,8 @@ def detect_obfuscation(email_html):
             value = float(match.group(1))
             unit = (match.group(2) or 'px').lower()
 
-            # Check if font is smaller than 1px
-            if unit == 'px' and value < 1 and value > 0:
+            # Check if font is smaller than 1px (including 0)
+            if unit == 'px' and value < 1:
                 obfuscation_count += 1
             elif unit == 'em' and value < 0.067:  # 0.067em ≈ 1px (15px base)
                 obfuscation_count += 1
@@ -86,8 +88,8 @@ def detect_obfuscation(email_html):
     if re.search(base64_pattern, html_str):
         obfuscation_count += 2  # Higher weight for base64 encoding
 
-    # Convert count to score (each technique adds 0.2, cap at 1.0)
-    obfuscation_score = min(1.0, obfuscation_count * 0.2)
+    # Convert count to score (each technique adds 0.25, cap at 1.0)
+    obfuscation_score = min(1.0, obfuscation_count * 0.25)
 
     return obfuscation_score
 
@@ -137,8 +139,17 @@ def analyze_content(email):
     if not combined_text and not email_html:
         return 0.0
 
+    # Detect language from text only (not from raw HTML markup)
+    text_for_language_detection = combined_text
+    if email_html:
+        try:
+            soup = BeautifulSoup(email_html, 'html.parser')
+            text_for_language_detection = f"{email_subject} {soup.get_text()}".strip()
+        except Exception:
+            pass  # Fall back to combined_text if parsing fails
+
     # Detect language from text
-    detected_lang = detect_language(combined_text)
+    detected_lang = detect_language(text_for_language_detection)
 
     # Score based on language
     language_penalty = 0.0
