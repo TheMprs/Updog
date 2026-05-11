@@ -3,6 +3,9 @@ from bs4 import BeautifulSoup
 import re
 from .utils import parse_email
 
+# tests conducted on content.py:
+# 1. test content score for email with phishing keywords
+
 # English phishing keywords
 ENGLISH_PHISHING_KEYWORDS = {
     # money related
@@ -48,52 +51,36 @@ def detect_obfuscation(email_html):
     obfuscation_score = 0.0
     obfuscation_count = 0
 
-    # 1. Detect hidden elements (display:none, visibility:hidden, opacity:0, etc.)
+    # Detect invisible text (white text, 0px fonts, etc.)
     for tag in soup.find_all(style=True):
         style = tag.get('style', '').lower()
-        if 'display' in style and 'none' in style:
-            obfuscation_count += 1
-        if 'visibility' in style and 'hidden' in style:
-            obfuscation_count += 1
-        if 'opacity' in style and '0' in style:
-            obfuscation_count += 1
-        if 'font-size' in style and ('0' in style or 'none' in style):
-            obfuscation_count += 1
-        if 'text-indent' in style and '-' in style:  # negative text-indent
-            obfuscation_count += 1
-        if 'position' in style and 'absolute' in style and ('top' in style and '-' in style or 'left' in style and '-' in style):
-            obfuscation_count += 1
+        clean_style = style.replace(" ", "")
 
-    # 2. Detect white/invisible text (white text, 1px fonts, etc.)
-    for tag in soup.find_all(style=True):
-        style = tag.get('style', '').lower()
         # White text on white/transparent background
         if 'color' in style and ('white' in style or '#fff' in style or '#ffffff' in style):
-            if 'background' in style and ('white' in style or '#fff' in style or '#ffffff' in style or 'transparent' in style):
+            # Check if background is specifically white/transparent
+            bg_match = re.search(r'background[^:]*:\s*([^;]+)', style)
+            if bg_match:
+                bg_value = bg_match.group(1).lower()
+                if any(x in bg_value for x in ['white', '#fff', '#ffffff', 'transparent']):
+                    obfuscation_count += 1
+                    
+        # Detect font sizes smaller than 1px
+        font_size_pattern = r'font-size\s*:\s*([\d.]+)(px|em|rem)?'
+        font_matches = re.finditer(font_size_pattern, style, re.IGNORECASE)
+        for match in font_matches:
+            value = float(match.group(1))
+            unit = (match.group(2) or 'px').lower()
+
+            # Check if font is smaller than 1px
+            if unit == 'px' and value < 1 and value > 0:
                 obfuscation_count += 1
-        # Extremely small fonts
-        if 'font-size' in style and any(f':{x}' in style for x in ['1px', '0px', '0.1']):
-            obfuscation_count += 1
+            elif unit == 'em' and value < 0.067:  # 0.067em ≈ 1px (15px base)
+                obfuscation_count += 1
+            elif unit == 'rem' and value < 0.067:
+                obfuscation_count += 1
 
-    # 3. Detect tracking pixels (1x1 images)
-    for img in soup.find_all('img'):
-        width = img.get('width', '').lower()
-        height = img.get('height', '').lower()
-        style = img.get('style', '').lower()
-
-        # Check for 1x1 pixel dimensions
-        if (width == '1' and height == '1') or \
-           ('width:1' in style and 'height:1' in style) or \
-           ('width:1px' in style and 'height:1px' in style):
-            obfuscation_count += 1
-
-    # 4. Detect suspicious iframe/script obfuscation
-    for tag in soup.find_all(['iframe', 'script']):
-        style = tag.get('style', '').lower()
-        if 'display' in style and 'none' in style:
-            obfuscation_count += 1
-
-    # 5. Detect base64 encoded content (often used to hide malicious content)
+    # Detect base64 encoded content (often used to hide malicious content)
     html_str = str(soup)
     base64_pattern = r'data:text/html;base64,'
     if re.search(base64_pattern, html_str):
