@@ -2,6 +2,7 @@ import os
 import re
 import requests
 from dotenv import load_dotenv
+from bs4 import BeautifulSoup
 
 # tests conducted on url.py:
 # 1. test url against google's safe browsing API
@@ -22,14 +23,62 @@ THREAT_TYPE_SCORES = {
     "POTENTIALLY_HARMFUL_APPLICATION": 0.4
 }
 
-def extract_urls(text):
+def extract_urls(email_html):
     """
-    Extract URLs from the given text using regex.
+    Extract URLs from the given text using regex and HTML parsing.
     """
-    url_pattern = r'(https?://[^\s]+)'
-    urls = re.findall(url_pattern, text)
-    # remove trailing punctuation from URLs (example.com? -> example.com)
-    return [url.rstrip('.,;:!?)"\'}') for url in urls]
+    soup = BeautifulSoup(email_html, "html.parser")
+    urls = set()  # use a set to avoid duplicates
+
+    # 1. href [links, stylesheets, base] (<a> is hyperlink tag)
+    for tag in soup.find_all(['a', 'link', 'base']):
+        href = tag.get("href")
+        if href:
+            urls.add(href)
+
+    # 2. images, iframes, scripts, video, audio, embeds, objects
+    for tag in soup.find_all(["img", "iframe", "script", "video", "audio", "source" ,"embed", "object"]):
+        src = tag.get("src")
+        if src:
+            urls.add(src)
+
+    # 3. form actions
+    for tag in soup.find_all("form"):
+        action = tag.get("action")
+        if action:
+            urls.add(action)
+
+    # 4. CSS urls (background images, fonts, etc.)
+    for tag in soup.find_all(style=True):
+        style = tag.get("style", "")
+        css_urls = re.findall(r'background(?:-image)?:\s*url\([\'"]?([^\)]+)[\'"]?\)', style)
+        if(css_urls):
+            urls.update(css_urls)
+
+    # 5. meta refresh redirects
+    for tag in soup.find_all("meta", attrs={"http-equiv": "refresh"}):
+        content = tag.get("content", "")
+        refresh_urls = re.findall(r'url=([^\s]+)', content, re.IGNORECASE)
+        if(refresh_urls):
+            urls.update(refresh_urls)
+
+    # 6. plain text URLs (http, https, www, domain.tld)
+    text = soup.get_text()
+    url_pattern = r'(https?://[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,})'
+    text_urls = re.findall(url_pattern, text)
+    if text_urls:
+        urls.update(text_urls)
+    
+    # Filter and clean
+    valid_urls = []
+    for u in urls:
+        u = u.strip().strip("'\"")
+        if u and not u.startswith(('javascript:', 'data:', 'mailto:', 'tel:')):
+            # Strip trailing punctuation
+            u = u.rstrip('.,;:!?)"\'}')
+            valid_urls.append(u)
+    
+    return valid_urls
 
 def score_url(url, threat_matches):
     """
@@ -52,14 +101,14 @@ def analyze_urls(body):
     """
     api_key = os.getenv('SAFE_BROWSING_API_KEY')
     # check if API key exists
-    if not api_key:
+    if not api_key or api_key.strip() == "":
         raise ValueError("Safe Browsing API key not found in environment variables.")
     
     urls = extract_urls(body)
 
     # no urls found - return empty analysis
     if not urls:
-        return 0
+        return 0.0
     
     # retry request in case of network issues
     for attempt in range(2):

@@ -7,7 +7,7 @@ import re
 # Major companies whose domains are commonly spoofed
 MAJOR_DOMAINS = {
     "google.com", "microsoft.com", "apple.com", "amazon.com",
-    "paypal.com", "bank", "irs.gov", "fedex.com", "ups.com"
+    "paypal.com", "bank", "irs.gov", "fedex.com", "ups.com", "upwind"
 }
 
 def check_spam_score(headers):
@@ -39,9 +39,9 @@ def parse_authentication_results(auth_header):
     results = {"spf": None, "dkim": None, "dmarc": None}
 
     # extract spf, dkim, dmarc status from header
-    spf_match = re.search(r'spf=(\w+)', auth_header)
-    dkim_match = re.search(r'dkim=(\w+)', auth_header)
-    dmarc_match = re.search(r'dmarc=(\w+)', auth_header)
+    spf_match = re.search(r'spf=(\w+)', auth_header, re.IGNORECASE)
+    dkim_match = re.search(r'dkim=(\w+)', auth_header, re.IGNORECASE)
+    dmarc_match = re.search(r'dmarc=(\w+)', auth_header, re.IGNORECASE)
 
     if spf_match:
         results["spf"] = spf_match.group(1).lower()
@@ -73,9 +73,9 @@ def check_auth_failures(headers):
 
     auth_status = parse_authentication_results(auth_header)
 
-    # count failures (0-3)
+    # count failures (0-3) - sus if auth failed or is missing 
     failures = sum(1 for check in ["spf", "dkim", "dmarc"] 
-                   if auth_status[check] and auth_status[check] != "pass")
+                   if auth_status[check] is None or auth_status[check] != "pass")
     
     # base score: 0.3 per failure
     score = failures * 0.3
