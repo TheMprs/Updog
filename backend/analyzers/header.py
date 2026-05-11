@@ -1,4 +1,5 @@
 import re
+from typing import Dict, Optional
 
 # tests conducted on header.py:
 # 1. test gmail's authentication results header
@@ -36,7 +37,7 @@ def parse_authentication_results(auth_header):
     if not auth_header:
         return {"spf": None, "dkim": None, "dmarc": None}
 
-    results = {"spf": None, "dkim": None, "dmarc": None}
+    results: Dict[str, Optional[str]] = {"spf": None, "dkim": None, "dmarc": None}
 
     # extract spf, dkim, dmarc status from header
     spf_match = re.search(r'spf=(\w+)', auth_header, re.IGNORECASE)
@@ -86,14 +87,27 @@ def check_auth_failures(headers):
 
     return score
 
-def analyze_headers(email_headers):
+def analyze_headers(email):
     """
-    Analyze email headers for malicious patterns using authentication results and spam score.
-    Returns a combined score between 0.0 (safe) and 1.0 (malicious).
+    Analyze email headers for malicious patterns.
+
+    Args:
+        email: Full email string (headers + body)
+
+    Returns:
+        header_score: 0.0 (safe) to 1.0 (malicious)
     """
-    auth_score = check_auth_failures(email_headers)
-    spam_score = check_spam_score(email_headers)
-    # combine scores, giving more weight to authentication failures
+    parts = email.split('\n\n', 1)
+    headers_str = parts[0] if len(parts) > 0 else ""
+
+    headers_dict = {}
+    for line in headers_str.split('\n'):
+        if ':' in line:
+            key, value = line.split(':', 1)
+            headers_dict[key.strip()] = value.strip()
+
+    auth_score = check_auth_failures(headers_dict)
+    spam_score = check_spam_score(headers_dict)
     combined_score = min(1.0, auth_score * 0.7 + spam_score * 0.3)
-    
+
     return combined_score

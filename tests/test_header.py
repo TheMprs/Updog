@@ -2,10 +2,10 @@ import pytest
 import sys
 from pathlib import Path
 
-# Add backend to path so we can import analyzers
-sys.path.insert(0, str(Path(__file__).parent.parent / "backend" / "analyzers"))
+# Add backend to path so we can import analyzers as a package
+sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
 
-from header import (
+from analyzers.header import (
     parse_authentication_results,
     is_major_domain,
     check_auth_failures,
@@ -194,34 +194,22 @@ class TestCheckSpamScore:
 class TestAnalyzeHeaders:
     def test_clean_email(self):
         # Verify clean email with all passing checks scores 0.0
-        headers = {
-            "Authentication-Results": "spf=pass dkim=pass dmarc=pass",
-            "X-Spam-Score": "0",
-            "From": "user@example.com",
-        }
-        score = analyze_headers(headers)
+        email = "Authentication-Results: spf=pass dkim=pass dmarc=pass\nX-Spam-Score: 0\nFrom: user@example.com\n\nEmail body"
+        score = analyze_headers(email)
         assert score == 0.0
 
     def test_spoofed_apple(self):
         # Verify spoofed Apple email scores high (0.78)
-        headers = {
-            "Authentication-Results": "spf=fail dkim=fail dmarc=fail",
-            "X-Spam-Score": "5",
-            "From": "support@apple.com",
-        }
-        score = analyze_headers(headers)
+        email = "Authentication-Results: spf=fail dkim=fail dmarc=fail\nX-Spam-Score: 5\nFrom: support@apple.com\n\nEmail body"
+        score = analyze_headers(email)
         # auth_score = 0.9, spam_score = 0.5
         # combined = 0.9 * 0.7 + 0.5 * 0.3 = 0.63 + 0.15 = 0.78
         assert 0.77 < score < 0.79
 
     def test_suspicious_email(self):
         # Verify email with mixed failures and spam scores 0.63
-        headers = {
-            "Authentication-Results": "spf=fail dkim=pass dmarc=fail",
-            "X-Spam-Score": "7",
-            "From": "admin@example.com",
-        }
-        score = analyze_headers(headers)
+        email = "Authentication-Results: spf=fail dkim=pass dmarc=fail\nX-Spam-Score: 7\nFrom: admin@example.com\n\nEmail body"
+        score = analyze_headers(email)
         # auth_score = 0.6, spam_score = 0.7
         # combined = 0.6 * 0.7 + 0.7 * 0.3 = 0.42 + 0.21 = 0.63
         assert 0.62 < score < 0.64

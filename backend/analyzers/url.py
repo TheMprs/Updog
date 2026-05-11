@@ -3,6 +3,7 @@ import re
 import requests
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
+from .utils import parse_email
 
 # tests conducted on url.py:
 # 1. test url against google's safe browsing API
@@ -93,17 +94,24 @@ def score_url(url, threat_matches):
     # return the highest score among the matched threat types, defaulting to 0.5 for unknown types
     return max(THREAT_TYPE_SCORES.get(t, 0.5) for t in threat_matches)
 
-def analyze_urls(body):
-    """ 
-    Analyze URLs in the email body using Google Safe Browsing API.
-    Returns a score between 0.0 (safe) and 1.0 (malicious) based on the most dangerous URL found.
-    If no URLs are found, returns 0.0.
+def analyze_urls(email):
+    """
+    Analyze URLs in email using Google Safe Browsing API.
+
+    Args:
+        email: Full email string (headers + body)
+
+    Returns:
+        url_score: 0.0 (safe) to 1.0 (malicious) based on most dangerous URL found.
+                   If no URLs found, returns 0.0.
     """
     api_key = os.getenv('SAFE_BROWSING_API_KEY')
-    # check if API key exists
     if not api_key or api_key.strip() == "":
         raise ValueError("Safe Browsing API key not found in environment variables.")
-    
+
+    parsed = parse_email(email)
+    body = parsed["body"]
+
     urls = extract_urls(body)
 
     # no urls found - return empty analysis
@@ -111,6 +119,7 @@ def analyze_urls(body):
         return 0.0
     
     # retry request in case of network issues
+    data = {}
     for attempt in range(2):
         try:
             response = requests.post(

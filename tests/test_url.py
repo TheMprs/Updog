@@ -3,11 +3,10 @@ import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-# Add backend to path so we can import analyzers
-sys.path.insert(0, str(Path(__file__).parent.parent / "backend" / "analyzers"))
+# Add backend to path so we can import analyzers as a package
+sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
 
-from url import extract_urls, score_url, analyze_urls
-
+from analyzers.url import extract_urls, score_url, analyze_urls
 
 class TestExtractUrls:
     def test_simple_href(self):
@@ -127,7 +126,6 @@ class TestExtractUrls:
         urls = extract_urls(html)
         assert len(urls) == 0
 
-
 class TestScoreUrl:
     def test_no_threats(self):
         # Verify URL with no threats scores 0.0
@@ -165,26 +163,27 @@ class TestScoreUrl:
         score = score_url("https://unknown.com", ["UNKNOWN_THREAT"])
         assert score == 0.5
 
-
 class TestAnalyzeUrls:
-    @patch('url.requests.post')
+    @patch('analyzers.url.requests.post')
     def test_no_urls_found(self, mock_post):
         # Verify no API call when no URLs found
-        result = analyze_urls("<p>No links here</p>")
+        email = "From: test@example.com\n\n<p>No links here</p>"
+        result = analyze_urls(email)
         assert result == 0.0
         mock_post.assert_not_called()
 
-    @patch('url.requests.post')
+    @patch('analyzers.url.requests.post')
     def test_safe_urls(self, mock_post):
         # Verify API returns 0.0 score when no threats found
         mock_response = MagicMock()
         mock_response.json.return_value = {"matches": []}
         mock_post.return_value = mock_response
 
-        result = analyze_urls('<a href="https://safe.com">Link</a>')
+        email = "From: test@example.com\n\n<a href=\"https://safe.com\">Link</a>"
+        result = analyze_urls(email)
         assert result == 0.0
 
-    @patch('url.requests.post')
+    @patch('analyzers.url.requests.post')
     def test_malicious_url(self, mock_post):
         # Verify API returns 1.0 score when MALWARE threat found
         mock_response = MagicMock()
@@ -198,10 +197,11 @@ class TestAnalyzeUrls:
         }
         mock_post.return_value = mock_response
 
-        result = analyze_urls('<a href="https://evil.com">Click</a>')
+        email = "From: test@example.com\n\n<a href=\"https://evil.com\">Click</a>"
+        result = analyze_urls(email)
         assert result == 1.0
 
-    @patch('url.requests.post')
+    @patch('analyzers.url.requests.post')
     def test_multiple_urls_returns_max_score(self, mock_post):
         # Verify multiple malicious URLs returns highest threat score
         mock_response = MagicMock()
@@ -213,28 +213,30 @@ class TestAnalyzeUrls:
         }
         mock_post.return_value = mock_response
 
-        html = '<a href="https://evil1.com">Link1</a><a href="https://evil2.com">Link2</a>'
-        result = analyze_urls(html)
+        email = "From: test@example.com\n\n<a href=\"https://evil1.com\">Link1</a><a href=\"https://evil2.com\">Link2</a>"
+        result = analyze_urls(email)
         assert result == 1.0  # MALWARE score is highest
 
-    @patch('url.requests.post')
+    @patch('analyzers.url.requests.post')
     def test_api_key_missing(self, mock_post):
         # Verify ValueError raised when API key not in environment
         import os
         with patch.dict(os.environ, {}, clear=True):
             with pytest.raises(ValueError, match="Safe Browsing API key"):
-                analyze_urls('<a href="https://example.com">Link</a>')
+                email = "From: test@example.com\n\n<a href=\"https://example.com\">Link</a>"
+                analyze_urls(email)
 
-    @patch('url.requests.post')
+    @patch('analyzers.url.requests.post')
     def test_api_request_timeout(self, mock_post):
         # Verify Timeout exception propagates when API request times out
         import requests
         mock_post.side_effect = requests.Timeout()
 
         with pytest.raises(requests.Timeout):
-            analyze_urls('<a href="https://example.com">Link</a>')
+            email = "From: test@example.com\n\n<a href=\"https://example.com\">Link</a>"
+            analyze_urls(email)
 
-    @patch('url.requests.post')
+    @patch('analyzers.url.requests.post')
     def test_api_retry_on_failure(self, mock_post):
         # Verify API retries once on connection error, succeeds on second attempt
         import requests
@@ -244,6 +246,7 @@ class TestAnalyzeUrls:
         # First call fails, second succeeds
         mock_post.side_effect = [requests.ConnectionError(), mock_response]
 
-        result = analyze_urls('<a href="https://example.com">Link</a>')
+        email = "From: test@example.com\n\n<a href=\"https://example.com\">Link</a>"
+        result = analyze_urls(email)
         assert result == 0.0
         assert mock_post.call_count == 2
