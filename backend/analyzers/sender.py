@@ -1,20 +1,77 @@
+import re
+from datetime import datetime, timezone
 from .utils import parse_email
+
+import whois as whois_lib
 
 MAJOR_DOMAINS = {
     "google.com", "microsoft.com", "apple.com", "amazon.com",
     "paypal.com", "bank", "irs.gov", "fedex.com", "ups.com", "upwind"
 }
 
+# Display name keywords associated with major brands
+MAJOR_BRAND_KEYWORDS = {
+    "google", "gmail", "microsoft", "outlook", "hotmail", "apple", "icloud",
+    "amazon", "aws", "paypal", "fedex", "ups", "irs", "bank", "chase",
+    "wells fargo", "citibank", "netflix", "facebook", "instagram", "twitter",
+    "linkedin", "dropbox", "upwind", "leumi", "hapoalim", "isracard", "visa", "mastercard",
+    "maccabi", "clal", "discount", "cal", "union", "psagot", "menora", "migdal", "yad2"
+}
+
 FREE_EMAIL_PROVIDERS = {"gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com"}
 
+def _levenshtein(a, b):
+    """
+    Calculate the Levenshtein distance between two strings.
+    This is a measure of how many single-character edits (insertions, deletions, substitutions)
+    are required to change one string into the other.
+    """
+    if len(a) < len(b):
+        return _levenshtein(b, a)
+    if len(b) == 0:
+        return len(a)
+    prev_row = range(len(b) + 1)
+    for c in a:
+        curr_row = [prev_row[0] + 1]
+        for j, d in enumerate(b):
+            curr_row.append(min(prev_row[j + 1] + 1, curr_row[j] + 1, prev_row[j] + (c != d)))
+        prev_row = curr_row
+    return prev_row[-1]
+
+def _extract_domain(email_addr):
+    """
+    Extract domain from email address, handling formats like "Name <email@domain.com>"
+    """
+    if not email_addr:
+        return ""
+    match = re.search(r'<([^>]+)>', email_addr)
+    if match:
+        email_addr = match.group(1)
+    parts = email_addr.strip().split('@')
+    return parts[-1].lower() if len(parts) == 2 else ""
 
 def check_domain_age(domain):
     """
     Check if domain was registered recently (< 30-90 days).
     Returns age_score: 0.0 (old/safe) to 1.0 (newly registered/suspicious)
     """
-    pass
-
+    try:
+        info = whois_lib.whois(domain)
+        creation_date = info.get("creation_date")
+        if isinstance(creation_date, list):
+            creation_date = creation_date[0]
+        if creation_date is None:
+            return 0.0
+        if creation_date.tzinfo is None:
+            creation_date = creation_date.replace(tzinfo=timezone.utc)
+        age_days = (datetime.now(timezone.utc) - creation_date).days
+        if age_days < 30:
+            return 1.0
+        if age_days < 90:
+            return 0.7
+        return 0.0
+    except Exception:
+        return 0.0
 
 def check_typosquatting(sender_domain):
     """
@@ -22,8 +79,24 @@ def check_typosquatting(sender_domain):
     Examples: paypa1.com, arnazon.com, micros0ft.com
     Returns typo_score: 0.0 (not a typo) to 1.0 (likely typosquat)
     """
-    pass
+    if not sender_domain:
+        return 0.0
 
+    sender_base = sender_domain.split('.')[0].lower()
+
+    for major in MAJOR_DOMAINS:
+        if sender_domain == major:
+            return 0.0  # exact match is legitimate
+        major_base = major.split('.')[0].lower()
+        if len(major_base) < 4:
+            continue
+        dist = _levenshtein(sender_base, major_base)
+        if dist == 1:
+            return 0.9
+        if dist == 2 and len(major_base) >= 6:
+            return 0.7
+
+    return 0.0
 
 def check_display_name_spoofing(from_header, sender_domain):
     """
@@ -31,16 +104,33 @@ def check_display_name_spoofing(from_header, sender_domain):
     Example: "Apple Support" <attacker@evil.com>
     Returns spoofing_score: 0.0 (legitimate) to 1.0 (clear spoofing)
     """
-    pass
+    if not from_header or not sender_domain:
+        return 0.0
 
+    display_name_match = re.match(r'^"?([^"<]+)"?\s*<', from_header)
+    if not display_name_match:
+        return 0.0
+
+    display_name = display_name_match.group(1).strip().lower()
+    sender_domain_lower = sender_domain.lower()
+
+    for keyword in MAJOR_BRAND_KEYWORDS:
+        if keyword in display_name:
+            # Brand keyword in display name but not in the actual sending domain
+            keyword_base = keyword.split()[0]
+            if keyword_base not in sender_domain_lower:
+                return 0.9
+
+    return 0.0
 
 def check_free_email_provider(sender_domain):
     """
-    Check if sender is using free email provider (@gmail, @yahoo, etc).
-    Returns free_email_score: 0.0 (business domain) to 1.0 (free provider)
+    Check if sender is using free email provider (@gmail, @yahoo, etc) sus if sender claims to be from a major brand.
+    Returns free_email_score: 0.0 to 1.0 
     """
-    pass
-
+    if not sender_domain:
+        return 0.0
+    return 0.3 if sender_domain.lower() in FREE_EMAIL_PROVIDERS else 0.0
 
 def check_reply_to_mismatch(from_domain, reply_to_domain):
     """
@@ -48,8 +138,23 @@ def check_reply_to_mismatch(from_domain, reply_to_domain):
     Example: From: bank@legit.com but Reply-To: harvest@evil.com
     Returns mismatch_score: 0.0 (matches) to 1.0 (severe mismatch)
     """
-    pass
+    if not from_domain or not reply_to_domain:
+        return 0.0
 
+    from_domain = from_domain.lower()
+    reply_to_domain = reply_to_domain.lower()
+
+    if from_domain == reply_to_domain:
+        return 0.0
+
+    # Allow subdomain differences (support.example.com vs example.com)
+    from_base = '.'.join(from_domain.split('.')[-2:])
+    reply_base = '.'.join(reply_to_domain.split('.')[-2:])
+
+    if from_base == reply_base:
+        return 0.0
+
+    return 0.8
 
 def analyze_sender(email):
     """
@@ -61,19 +166,35 @@ def analyze_sender(email):
     Returns:
         sender_score: 0.0 (safe) to 1.0 (malicious)
     """
-    parsed = parse_email(email)
+    parse_email(email)  # validate email format
 
-    # Extract sender info from headers
-    # from_header, reply_to_header, sender_domain, reply_to_domain
+    parts = email.split('\n\n', 1)
+    headers_str = parts[0] if parts else ""
+    headers_dict = {}
+    for line in headers_str.split('\n'):
+        if ':' in line:
+            key, value = line.split(':', 1)
+            headers_dict[key.strip()] = value.strip()
 
-    # Run all checks
-    age_score = check_domain_age("")
-    typo_score = check_typosquatting("")
-    spoofing_score = check_display_name_spoofing("", "")
-    free_email_score = check_free_email_provider("")
-    mismatch_score = check_reply_to_mismatch("", "")
+    from_header = headers_dict.get("From", "")
+    reply_to_header = headers_dict.get("Reply-To", "")
 
-    # Combine scores
-    sender_score = 0.0
+    sender_domain = _extract_domain(from_header)
+    reply_to_domain = _extract_domain(reply_to_header)
+
+    age_score = check_domain_age(sender_domain)
+    typo_score = check_typosquatting(sender_domain)
+    spoofing_score = check_display_name_spoofing(from_header, sender_domain)
+    free_email_score = check_free_email_provider(sender_domain)
+    mismatch_score = check_reply_to_mismatch(sender_domain, reply_to_domain)
+
+    # High-confidence signals (spoofing, typosquatting, reply-to mismatch) dominate;
+    # low-confidence signals (domain age, free provider) add supporting context
+    high_signal = max(spoofing_score, typo_score, mismatch_score)
+
+    if high_signal > 0:
+        sender_score = min(1.0, high_signal + age_score * 0.15 + free_email_score * 0.1)
+    else:
+        sender_score = age_score * 0.15
 
     return sender_score

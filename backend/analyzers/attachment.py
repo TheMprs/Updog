@@ -2,14 +2,8 @@ import email
 from email import policy
 import zipfile
 import io
-try:
-    import py7zr
-except ImportError:
-    py7zr = None
-try:
-    import rarfile
-except ImportError:
-    rarfile = None
+import py7zr
+import rarfile
 
 # Risk scores by file type
 RISKY_MIME_SCORES = {
@@ -51,7 +45,6 @@ EXECUTABLE_MIMES = {
     "application/x-java-applet",
 }
 
-
 def extract_attachments(email_raw):
     """
     Extract attachments from email message.
@@ -77,7 +70,6 @@ def extract_attachments(email_raw):
         pass  # If parsing fails, return empty list
 
     return attachments
-
 
 def check_risky_mime_types(attachments):
     """
@@ -118,7 +110,6 @@ def check_risky_mime_types(attachments):
 
     return max_score
 
-
 def check_encrypted_archives(attachments):
     """
     Check if any archive files are password-protected (used to bypass scanners).
@@ -146,8 +137,6 @@ def check_encrypted_archives(attachments):
                 max_score = max(max_score, 0.3)
 
         elif filename.endswith(".rar"):
-            if rarfile is None:
-                continue
             try:
                 rf = rarfile.RarFile(io.BytesIO(content))
                 # Check if archive requires a password
@@ -164,18 +153,13 @@ def check_encrypted_archives(attachments):
                 max_score = max(max_score, 0.3)
 
         elif filename.endswith(".7z"):
-            if py7zr is None:
-                continue
             try:
                 with py7zr.SevenZipFile(io.BytesIO(content), 'r') as archive:
                     # Check if archive has password set
                     if archive.password_protected:
                         max_score = max(max_score, 0.7)
-            except py7zr.Bad7zFile:
-                # Corrupted or invalid 7z file
-                max_score = max(max_score, 0.3)
             except Exception:
-                # Any other error suggests encryption or corruption
+                # Any other error suggests the file is problematic
                 max_score = max(max_score, 0.3)
 
     return max_score
