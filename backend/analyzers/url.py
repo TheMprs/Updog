@@ -10,6 +10,14 @@ from .utils import parse_email
 
 load_dotenv() # load .env file
 
+FILE_EXTENSIONS = {
+    "jpg", "jpeg", "png", "gif", "bmp", "svg", "ico", "webp",
+    "pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv",
+    "zip", "rar", "gz", "tar", "exe", "dll",
+    "mp4", "mp3", "avi", "mov", "wmv", "flv",
+    "css", "xml", "json", "woff", "woff2", "ttf", "eot",
+}
+
 THREAT_TYPES = [
     "MALWARE",
     "SOCIAL_ENGINEERING",
@@ -81,6 +89,24 @@ def extract_urls(email_html):
     
     return valid_urls
 
+def normalize_urls_for_api(urls):
+    """
+    Safe Browsing API requires full URLs - normalize bare domains and filter out filenames.
+    e.g. virus.com → http://virus.com, Doc-vous851.jpg → dropped
+    """
+    result = []
+    for u in urls:
+        if u.startswith(("http://", "https://")):
+            result.append(u)
+        else:
+            # bare domain or www. - prepend scheme so the API accepts it
+            candidate = "http://" + u
+            # extract the TLD to check if it's a file extension (e.g. .jpg, .png)
+            tld = u.rsplit(".", 1)[-1].lower() if "." in u else ""
+            if tld not in FILE_EXTENSIONS:
+                result.append(candidate)
+    return result
+
 def score_url(url, threat_matches):
     """
     Give a URL a score based on the threat types it matched.
@@ -113,10 +139,11 @@ def analyze_urls(email):
     body = parsed["body"]
 
     urls = extract_urls(body)
+    urls = normalize_urls_for_api(urls)
 
     # no urls found - return empty analysis
     if not urls:
-        return 0.0
+        return 0.0, {"malicious_urls": [], "total_urls": 0}
     
     # retry request in case of network issues
     data = {}
@@ -142,9 +169,11 @@ def analyze_urls(email):
             response.raise_for_status()  # check for bad HTTP status
             data = response.json() # transform into json object
             break  # Success, exit retry loop
-        except (requests.Timeout, requests.ConnectionError, requests.RequestException) as e:
-            if attempt == 1:  # were on the 2nd try, give up
-                raise
+        except requests.HTTPError:
+            break  # malformed request or API error - treat as no threats found
+        except (requests.Timeout, requests.ConnectionError):
+            if attempt == 1:
+                break  # give up after 2 tries
             continue
 
     # Build threat map: url -> threat types
@@ -155,4 +184,9 @@ def analyze_urls(email):
     
     # Score each URL, return max
     scores = [score_url(url, threat_map.get(url, [])) for url in urls]
-    return max(scores) if scores else 0.0
+    final_score = max(scores) if scores else 0.0
+
+    return final_score, {
+        "malicious_urls": [url for url in urls if url in threat_map],
+        "total_urls": len(urls),
+    }

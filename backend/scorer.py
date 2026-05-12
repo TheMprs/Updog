@@ -1,0 +1,124 @@
+from analyzers.header import analyze_headers
+from analyzers.content import analyze_content
+from analyzers.url import analyze_urls
+from analyzers.attachment import analyze_attachments
+from analyzers.sender import analyze_sender
+
+WEIGHTS = {
+    "url":        0.30, # url analysis comes from google, strongest signal
+    "sender":     0.25, # brand impersonation and domain age are classic phishing signals
+    "header":     0.20, # auth failures are strong indicators of sus but companies can make mistakes
+    "content":    0.15, # least reliable as phishers can use generic language, but still important for context
+    "attachment": 0.10, # attachments are common in phishing but many legitimate emails have them too, so lowest weight
+}
+
+# Prevent signal dilution by safe scores elsewhere.
+# List of (analyzer_key, threshold, min_score) — multiple rules per key are allowed.
+SIGNAL_FLOORS = [
+    ("url",        0.8, 75),  # known malicious URL → at least 75
+    ("attachment", 0.6, 65),  # risky file type (.exe, .ps1 etc.) → at least 65
+    ("sender",     0.7, 55),  # newly registered domain or free provider → at least 55
+    ("sender",     0.9, 70),  # clear spoofing/typosquat → at least 70
+]
+
+SCORE_BANDS = [
+    (0,  30,  "Safe",             "green"),
+    (31, 60,  "Suspicious",       "yellow"),
+    (61, 80,  "Likely Malicious", "orange"),
+    (81, 100, "Malicious",        "red"),
+]
+
+BULLET_RULES = [
+    (lambda s: s.get("spf") not in ("pass", None),       "❌", "SPF authentication failed"),
+    (lambda s: s.get("dkim") not in ("pass", None),      "❌", "DKIM signature invalid"),
+    (lambda s: s.get("dmarc") not in ("pass", None),     "❌", "DMARC policy failed"),
+    (lambda s: s.get("display_name_spoof"),               "❌", "Display name impersonates a known brand"),
+    (lambda s: s.get("reply_to_mismatch"),                "⚠️", "Reply-To address differs from sender domain"),
+    (lambda s: s.get("typosquat_detected"),               "❌", "Sender domain closely resembles a known brand"),
+    (lambda s: s.get("free_provider_spoof"),              "⚠️", "Business email sent from free provider"),
+    (lambda s: s.get("malicious_urls"),                   "❌", "Malicious URLs detected"),
+    (lambda s: s.get("phishing_keywords", 0) > 5,        "⚠️", "High concentration of phishing keywords"),
+    (lambda s: s.get("obfuscation_detected"),             "❌", "HTML obfuscation techniques detected"),
+    (lambda s: s.get("mime_mismatch"),                    "❌", "Attachment file type is disguised"),
+    (lambda s: s.get("encrypted_archive"),                "⚠️", "Password-protected archive attached"),
+    (lambda s: s.get("risky_extension"),                  "⚠️", "Risky attachment type detected"),
+]
+
+
+def compute_score(scores: dict, has_urls: bool, has_attachments: bool) -> int:
+    active_weights = {
+        k: v for k, v in WEIGHTS.items()
+        if not (k == "url" and not has_urls)
+        and not (k == "attachment" and not has_attachments)
+    }
+    total_weight = sum(active_weights.values())
+    weighted = sum(scores[k] * w for k, w in active_weights.items()) / total_weight
+
+    floor = max(
+        (min_score for key, threshold, min_score in SIGNAL_FLOORS
+         if key in active_weights and scores.get(key, 0) >= threshold),
+        default=0,
+    )
+
+    return round(min(100, max(weighted * 100, floor)))
+
+
+def get_band(score: int) -> tuple:
+    for low, high, verdict, color in SCORE_BANDS:
+        if low <= score <= high:
+            return verdict, color
+    return "Safe", "green"
+
+
+def generate_bullets(signals: dict) -> list:
+    return [
+        f"{icon} {text}"
+        for condition, icon, text in BULLET_RULES
+        if condition(signals)
+    ]
+
+
+def analyze(email: str) -> dict:
+    header_score,     header_signals     = analyze_headers(email)
+    content_score,    content_signals    = analyze_content(email)
+    url_score,        url_signals        = analyze_urls(email)
+    attachment_score, attachment_signals = analyze_attachments(email)
+    sender_score,     sender_signals     = analyze_sender(email)
+
+    has_urls        = url_signals.get("total_urls", 0) > 0
+    has_attachments = attachment_signals.get("total_attachments", 0) > 0
+
+    scores = {
+        "header":     header_score,
+        "sender":     sender_score,
+        "url":        url_score,
+        "content":    content_score,
+        "attachment": attachment_score,
+    }
+
+    signals = {
+        **header_signals,
+        **sender_signals,
+        **url_signals,
+        **content_signals,
+        **attachment_signals,
+    }
+
+    score          = compute_score(scores, has_urls, has_attachments)
+    verdict, color = get_band(score)
+    bullets        = generate_bullets(signals)
+
+    return {
+        "score":   score,
+        "verdict": verdict,
+        "color":   color,
+        "bullets": bullets,
+        "breakdown": scores,
+        "signals": {
+            "header":     header_signals,
+            "sender":     sender_signals,
+            "url":        url_signals,
+            "content":    content_signals,
+            "attachment": attachment_signals,
+        },
+    }

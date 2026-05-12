@@ -195,13 +195,13 @@ class TestAnalyzeHeaders:
     def test_clean_email(self):
         # Verify clean email with all passing checks scores 0.0
         email = "Authentication-Results: spf=pass dkim=pass dmarc=pass\nX-Spam-Score: 0\nFrom: user@example.com\n\nEmail body"
-        score = analyze_headers(email)
+        score, _ = analyze_headers(email)
         assert score == 0.0
 
     def test_spoofed_apple(self):
         # Verify spoofed Apple email scores high (0.78)
         email = "Authentication-Results: spf=fail dkim=fail dmarc=fail\nX-Spam-Score: 5\nFrom: support@apple.com\n\nEmail body"
-        score = analyze_headers(email)
+        score, _ = analyze_headers(email)
         # auth_score = 0.9, spam_score = 0.5
         # combined = 0.9 * 0.7 + 0.5 * 0.3 = 0.63 + 0.15 = 0.78
         assert 0.77 < score < 0.79
@@ -209,7 +209,16 @@ class TestAnalyzeHeaders:
     def test_suspicious_email(self):
         # Verify email with mixed failures and spam scores 0.63
         email = "Authentication-Results: spf=fail dkim=pass dmarc=fail\nX-Spam-Score: 7\nFrom: admin@example.com\n\nEmail body"
-        score = analyze_headers(email)
+        score, _ = analyze_headers(email)
         # auth_score = 0.6, spam_score = 0.7
         # combined = 0.6 * 0.7 + 0.7 * 0.3 = 0.42 + 0.21 = 0.63
         assert 0.62 < score < 0.64
+
+    def test_signals_returned(self):
+        email = "Authentication-Results: spf=pass dkim=fail dmarc=pass\nX-Spam-Score: 3\nFrom: user@apple.com\n\nBody"
+        _, signals = analyze_headers(email)
+        assert signals["spf"] == "pass"
+        assert signals["dkim"] == "fail"
+        assert signals["dmarc"] == "pass"
+        assert signals["is_major_domain"] is True
+        assert signals["spam_score"] == pytest.approx(0.3)

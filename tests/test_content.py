@@ -153,24 +153,24 @@ class TestCountPhishingKeywords:
 class TestAnalyzeContent:
     def test_empty_string(self):
         # Empty string should not crash and should return 0.0
-        score = analyze_content("")
+        score, _ = analyze_content("")
         assert score == 0.0
 
     def test_none_input(self):
         # None input should not crash and should return 0.0
-        score = analyze_content(None)
+        score, _ = analyze_content(None)
         assert score == 0.0
 
     def test_safe_english_email(self):
         # Conversational English with no phishing keywords should score very low
         email = "From: friend@example.com\nSubject: Lunch tomorrow?\n\nHey, are you free for lunch tomorrow? Let me know!"
-        score = analyze_content(email)
+        score, _ = analyze_content(email)
         assert score < 0.2
 
     def test_safe_hebrew_email(self):
         # Hebrew text with no phishing keywords should not trigger language penalty
         email = "From: friend@example.com\nSubject: שלום\n\nמה שלומך? הכל בסדר אצלי, נדבר בקרוב."
-        score = analyze_content(email)
+        score, _ = analyze_content(email)
         assert score < 0.2
 
     def test_keyword_score_caps_at_0_7(self):
@@ -182,7 +182,7 @@ class TestAnalyzeContent:
             "claim", "offer", "free", "expired"
         ])
         email = f"From: scammer@evil.com\nSubject: Urgent\n\n{many_keywords}"
-        score = analyze_content(email)
+        score, _ = analyze_content(email)
         # keyword_score alone is capped at 0.7, overall score can reach 1.0 with other factors
         assert score <= 1.0
         assert score >= 0.7  # should definitely hit the keyword cap
@@ -190,7 +190,7 @@ class TestAnalyzeContent:
     def test_case_insensitive_keywords_in_full_email(self):
         # Mixed-case phishing keywords should be detected in a full email
         email = "From: scam@evil.com\nSubject: URGENT\n\nPlease VERIFY your ACCOUNT and LOGIN immediately. Your PASSWORD has EXPIRED."
-        score = analyze_content(email)
+        score, _ = analyze_content(email)
         assert score > 0.0
 
     def test_language_penalty_applied_for_spanish(self):
@@ -199,7 +199,7 @@ class TestAnalyzeContent:
             "From: scammer@evil.com\nSubject: Urgente\n\n"
             "Haga clic aquí para verificar su cuenta bancaria de forma urgente antes de que expire."
         )
-        score = analyze_content(spanish_email)
+        score, _ = analyze_content(spanish_email)
         assert score >= 0.15
 
     def test_language_penalty_applied_for_russian(self):
@@ -208,13 +208,13 @@ class TestAnalyzeContent:
             "From: scammer@evil.com\nSubject: Срочно\n\n"
             "Пожалуйста, подтвердите свою учётную запись немедленно. Ваш пароль истёк."
         )
-        score = analyze_content(russian_email)
+        score, _ = analyze_content(russian_email)
         assert score >= 0.15
 
     def test_perfectly_safe_empty_html(self):
         # Empty HTML body with no signals should score 0.0
         email = "From: user@example.com\nSubject: Hi\n\n<html><body></body></html>"
-        score = analyze_content(email)
+        score, _ = analyze_content(email)
         assert score == 0.0
 
     def test_maximum_malicious_score_capped_at_1(self):
@@ -232,7 +232,7 @@ class TestAnalyzeContent:
             f'<p>Haga clic aquí para verificar. {obfuscated_keywords}</p>'
             f'</body></html>'
         )
-        score = analyze_content(email)
+        score, _ = analyze_content(email)
         assert score == 1.0
 
     def test_obfuscation_alone_raises_score(self):
@@ -241,5 +241,12 @@ class TestAnalyzeContent:
             "From: scammer@evil.com\nSubject: Hello\n\n"
             '<html><body><span style="font-size: 0px;">.</span></body></html>'
         )
-        score = analyze_content(email)
+        score, _ = analyze_content(email)
         assert score > 0.0
+
+    def test_signals_returned(self):
+        email = "From: scam@evil.com\nSubject: Urgent\n\nPlease verify your account and confirm your password immediately."
+        _, signals = analyze_content(email)
+        assert signals["phishing_keywords"] > 0
+        assert signals["detected_language"] is not None
+        assert isinstance(signals["obfuscation_detected"], bool)

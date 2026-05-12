@@ -1,8 +1,17 @@
 import re
+import os
+import sys
 from datetime import datetime, timezone
 from .utils import parse_email
 
 import whois as whois_lib
+
+# tests conducted on sender.py:
+# 1. check domain age 
+# 2. test typosquatting of major brands
+# 3. check display name mismatch with brand keywords
+# 4. check email provider matching email sender 
+# 5. test reply-to mismatch 
 
 MAJOR_DOMAINS = {
     "google.com", "microsoft.com", "apple.com", "amazon.com",
@@ -55,8 +64,16 @@ def check_domain_age(domain):
     Check if domain was registered recently (< 30-90 days).
     Returns age_score: 0.0 (old/safe) to 1.0 (newly registered/suspicious)
     """
+    if not domain:
+        return 0.0
     try:
-        info = whois_lib.whois(domain)
+        # suppress whois library noise (it prints socket errors before throwing)
+        with open(os.devnull, 'w') as devnull:
+            sys.stdout, sys.stderr = devnull, devnull
+            try:
+                info = whois_lib.whois(domain)
+            finally:
+                sys.stdout, sys.stderr = sys.__stdout__, sys.__stderr__
         creation_date = info.get("creation_date")
         if isinstance(creation_date, list):
             creation_date = creation_date[0]
@@ -77,26 +94,26 @@ def check_typosquatting(sender_domain):
     """
     Check if sender domain is a typosquat of major domains using edit distance.
     Examples: paypa1.com, arnazon.com, micros0ft.com
-    Returns typo_score: 0.0 (not a typo) to 1.0 (likely typosquat)
+    Returns (typo_score, target): score 0.0-1.0 and the matched major domain or None
     """
     if not sender_domain:
-        return 0.0
+        return 0.0, None
 
     sender_base = sender_domain.split('.')[0].lower()
 
     for major in MAJOR_DOMAINS:
         if sender_domain == major:
-            return 0.0  # exact match is legitimate
+            return 0.0, None  # exact match is legitimate
         major_base = major.split('.')[0].lower()
         if len(major_base) < 4:
             continue
         dist = _levenshtein(sender_base, major_base)
         if dist == 1:
-            return 0.9
+            return 0.9, major
         if dist == 2 and len(major_base) >= 6:
-            return 0.7
+            return 0.7, major
 
-    return 0.0
+    return 0.0, None
 
 def check_display_name_spoofing(from_header, sender_domain):
     """
@@ -168,13 +185,18 @@ def analyze_sender(email):
     """
     parse_email(email)  # validate email format
 
+    email = email.replace('\r\n', '\n').replace('\r', '\n')
     parts = email.split('\n\n', 1)
     headers_str = parts[0] if parts else ""
     headers_dict = {}
+    current_key = None
     for line in headers_str.split('\n'):
-        if ':' in line:
+        if line and line[0] in (' ', '\t') and current_key:
+            headers_dict[current_key] += ' ' + line.strip()
+        elif ':' in line:
             key, value = line.split(':', 1)
-            headers_dict[key.strip()] = value.strip()
+            current_key = key.strip()
+            headers_dict[current_key] = value.strip()
 
     from_header = headers_dict.get("From", "")
     reply_to_header = headers_dict.get("Reply-To", "")
@@ -183,7 +205,7 @@ def analyze_sender(email):
     reply_to_domain = _extract_domain(reply_to_header)
 
     age_score = check_domain_age(sender_domain)
-    typo_score = check_typosquatting(sender_domain)
+    typo_score, typo_target = check_typosquatting(sender_domain)
     spoofing_score = check_display_name_spoofing(from_header, sender_domain)
     free_email_score = check_free_email_provider(sender_domain)
     mismatch_score = check_reply_to_mismatch(sender_domain, reply_to_domain)
@@ -195,6 +217,14 @@ def analyze_sender(email):
     if high_signal > 0:
         sender_score = min(1.0, high_signal + age_score * 0.15 + free_email_score * 0.1)
     else:
-        sender_score = age_score * 0.15
+        # domain age and free provider as standalone signals
+        sender_score = min(1.0, age_score * 0.7 + free_email_score * 0.3)
 
-    return sender_score
+    return sender_score, {
+        "display_name_spoof": spoofing_score > 0,
+        "reply_to_mismatch":  mismatch_score > 0,
+        "free_provider_spoof": free_email_score > 0,
+        "typosquat_detected": typo_score > 0,
+        "typosquat_target":   typo_target,
+        "from_domain":        sender_domain,
+    }

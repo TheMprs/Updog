@@ -269,7 +269,7 @@ class TestCheckMimeExtensionMismatch:
 class TestAnalyzeAttachments:
     def test_no_attachments(self):
         email = "From: test@example.com\nSubject: Test\n\nNo attachments"
-        score = analyze_attachments(email)
+        score, _ = analyze_attachments(email)
         assert score == 0.0
 
     def test_safe_attachment(self):
@@ -293,7 +293,7 @@ class TestAnalyzeAttachments:
             "--boundary123--\n"
         )
 
-        score = analyze_attachments(email)
+        score, _ = analyze_attachments(email)
         assert score < 0.5  # Safe or low risk
 
     def test_risky_extension(self):
@@ -313,5 +313,26 @@ class TestAnalyzeAttachments:
             "--boundary123--\n"
         )
 
-        score = analyze_attachments(email)
+        score, _ = analyze_attachments(email)
         assert score >= 0.8  # High risk
+
+    def test_signals_returned(self):
+        email = (
+            "From: test@example.com\n"
+            "Subject: Program\n"
+            "MIME-Version: 1.0\n"
+            "Content-Type: multipart/mixed; boundary=boundary123\n"
+            "\n"
+            "--boundary123\n"
+            "Content-Type: application/x-msdownload\n"
+            "Content-Disposition: attachment; filename=\"program.exe\"\n"
+            "Content-Transfer-Encoding: base64\n"
+            "\n"
+            "TVpaAAAA\n"
+            "--boundary123--\n"
+        )
+        _, signals = analyze_attachments(email)
+        assert signals["risky_extension"] is True
+        assert "program.exe" in signals["risky_files"]
+        assert isinstance(signals["encrypted_archive"], bool)
+        assert isinstance(signals["mime_mismatch"], bool)

@@ -95,19 +95,34 @@ def analyze_headers(email):
         email: Full email string (headers + body)
 
     Returns:
-        header_score: 0.0 (safe) to 1.0 (malicious)
+        (header_score, signals): score 0.0 (safe) to 1.0 (malicious), and raw signal dict
     """
+    email = email.replace('\r\n', '\n').replace('\r', '\n')
     parts = email.split('\n\n', 1)
     headers_str = parts[0] if len(parts) > 0 else ""
 
     headers_dict = {}
+    current_key = None
     for line in headers_str.split('\n'):
-        if ':' in line:
+        if line and line[0] in (' ', '\t') and current_key:
+            headers_dict[current_key] += ' ' + line.strip()
+        elif ':' in line:
             key, value = line.split(':', 1)
-            headers_dict[key.strip()] = value.strip()
+            current_key = key.strip()
+            headers_dict[current_key] = value.strip()
+
+    auth_header = headers_dict.get("Authentication-Results", "")
+    from_address = headers_dict.get("From", "")
+    auth_status = parse_authentication_results(auth_header)
 
     auth_score = check_auth_failures(headers_dict)
     spam_score = check_spam_score(headers_dict)
     combined_score = min(1.0, auth_score * 0.7 + spam_score * 0.3)
 
-    return combined_score
+    return combined_score, {
+        "spf": auth_status["spf"],
+        "dkim": auth_status["dkim"],
+        "dmarc": auth_status["dmarc"],
+        "is_major_domain": is_major_domain(from_address),
+        "spam_score": spam_score,
+    }

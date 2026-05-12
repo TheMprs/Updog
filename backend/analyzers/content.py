@@ -11,21 +11,29 @@ from .utils import parse_email
 # English phishing keywords
 ENGLISH_PHISHING_KEYWORDS = {
     # money related
-    "due", "bill", "payment", "invoice", "transfer", "bank", "cash", "reward", "prize", 
-    "winner", "lottery", "free", "offer", "claim", "credit", "upgrade", "subscription", "refund", 
-    "compensation", "bonus", "gift", "deal", "discount", "limited time", "exclusive", "save", 
+    "due", "bill", "payment", "invoice", "transfer", "bank", "cash", "reward", "prize",
+    "winner", "lottery", "free", "offer", "claim", "credit", "upgrade", "subscription", "refund",
+    "compensation", "bonus", "gift", "deal", "discount", "limited time", "exclusive", "save",
     "earn", "income", "investment", "opportunity", "money", "pay", "wire", "western union",
-    "paypal", "venmo", "zelle", "cashapp", "cryptocurrency", "bitcoin", "ethereum", "crypto", 
-    "wallet", "exchange", "mining", "token", "nft", 
+    "paypal", "venmo", "zelle", "cashapp", "cryptocurrency", "bitcoin", "ethereum", "crypto",
+    "wallet", "exchange", "mining", "token", "nft",
+    "balance", "replenishment", "withdrawal", "payout", "profit", "airdrop", "giveaway",
+    "jackpot", "selected", "chosen", "overdue", "outstanding", "debt", "collection",
     # urgency related
     "confirm", "urgent", "act now", "immediately", "asap", "important", "last chance",
     "final", "notice", "deadline", "expires", "soon", "critical", "emergency", "risk", "suspicious", "compromise",
+    "24 hours", "expires today", "today only", "last opportunity", "immediately contact",
+    "your account will be",
     # actions needed
-    "verify", "validate", "authenticate", "confirm identity", "click here", 
-    "update", "re-enable", "reactivate", "needed", "act", "login", "sign in", "register" 
+    "verify", "validate", "authenticate", "confirm identity", "click here",
+    "update", "re-enable", "reactivate", "needed", "act", "login", "sign in", "register",
+    "claim now", "verify now", "confirm now", "activate now", "unlock", "click below", "tap here",
     # account related
     "locked", "unusual activity", "password", "expire", "suspended", "contact",
     "account", "action required", "alert", "warning", "compromise", "secure", "security",
+    # authority / legal threats
+    "legal notice", "court", "proceeding", "indictment", "authority", "official notice",
+    "law enforcement", "subpoena", "warrant", "penalty", "fine",
     # high language keywords
     "dear", "sir", "madam", "customer", "user", "member", "valued", "client", "friend",
 }
@@ -35,7 +43,6 @@ HEBREW_PHISHING_KEYWORDS = {
 }
 
 SAFE_LANGUAGES = {"en", "he"}  # English and Hebrew
-
 
 def detect_obfuscation(email_html):
     """
@@ -93,7 +100,6 @@ def detect_obfuscation(email_html):
 
     return obfuscation_score
 
-
 def detect_language(text):
     """
     Detect language of email text. 
@@ -109,7 +115,6 @@ def detect_language(text):
     except LangDetectException:
         return None
 
-
 def count_phishing_keywords(text, keywords):
     """Count occurrences of phishing keywords in text"""
     text_lower = text.lower()
@@ -117,7 +122,6 @@ def count_phishing_keywords(text, keywords):
     for keyword in keywords:
         count += text_lower.count(keyword)
     return count
-
 
 def analyze_content(email):
     """
@@ -137,7 +141,7 @@ def analyze_content(email):
     combined_text = f"{email_subject} {email_body}".strip()
 
     if not combined_text and not email_html:
-        return 0.0
+        return 0.0, {"phishing_keywords": 0, "detected_language": None, "obfuscation_detected": False}
 
     # Detect language from text only (not from raw HTML markup)
     text_for_language_detection = combined_text
@@ -177,4 +181,8 @@ def analyze_content(email):
     # Combine scores: keywords + language penalty + obfuscation
     content_score = min(1.0, keyword_score + language_penalty + obfuscation_score)
 
-    return content_score
+    return content_score, {
+        "phishing_keywords": phishing_count,
+        "detected_language": detected_lang,
+        "obfuscation_detected": obfuscation_score > 0,
+    }

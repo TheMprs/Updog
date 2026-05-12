@@ -168,7 +168,7 @@ class TestAnalyzeUrls:
     def test_no_urls_found(self, mock_post):
         # Verify no API call when no URLs found
         email = "From: test@example.com\n\n<p>No links here</p>"
-        result = analyze_urls(email)
+        result, _ = analyze_urls(email)
         assert result == 0.0
         mock_post.assert_not_called()
 
@@ -180,7 +180,7 @@ class TestAnalyzeUrls:
         mock_post.return_value = mock_response
 
         email = "From: test@example.com\n\n<a href=\"https://safe.com\">Link</a>"
-        result = analyze_urls(email)
+        result, _ = analyze_urls(email)
         assert result == 0.0
 
     @patch('analyzers.url.requests.post')
@@ -198,7 +198,7 @@ class TestAnalyzeUrls:
         mock_post.return_value = mock_response
 
         email = "From: test@example.com\n\n<a href=\"https://evil.com\">Click</a>"
-        result = analyze_urls(email)
+        result, _ = analyze_urls(email)
         assert result == 1.0
 
     @patch('analyzers.url.requests.post')
@@ -214,8 +214,21 @@ class TestAnalyzeUrls:
         mock_post.return_value = mock_response
 
         email = "From: test@example.com\n\n<a href=\"https://evil1.com\">Link1</a><a href=\"https://evil2.com\">Link2</a>"
-        result = analyze_urls(email)
+        result, _ = analyze_urls(email)
         assert result == 1.0  # MALWARE score is highest
+
+    @patch('analyzers.url.requests.post')
+    def test_signals_returned(self, mock_post):
+        mock_response = MagicMock()
+        mock_response.json.return_value = {
+            "matches": [{"threat": {"url": "https://evil.com"}, "threatType": "MALWARE"}]
+        }
+        mock_post.return_value = mock_response
+
+        email = "From: test@example.com\n\n<a href=\"https://evil.com\">Click</a>"
+        _, signals = analyze_urls(email)
+        assert "https://evil.com" in signals["malicious_urls"]
+        assert signals["total_urls"] >= 1
 
     @patch('analyzers.url.requests.post')
     def test_api_key_missing(self, mock_post):
@@ -247,6 +260,6 @@ class TestAnalyzeUrls:
         mock_post.side_effect = [requests.ConnectionError(), mock_response]
 
         email = "From: test@example.com\n\n<a href=\"https://example.com\">Link</a>"
-        result = analyze_urls(email)
+        result, _ = analyze_urls(email)
         assert result == 0.0
         assert mock_post.call_count == 2

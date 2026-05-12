@@ -5,6 +5,11 @@ import io
 import py7zr
 import rarfile
 
+# tests conducted on attachment.py:
+# 1. test for dangerous file types (exe, scr, js, etc.)
+# 2. test for password-protected archives (zip, rar, 7z)
+# 3. test for MIME type mismatches (e.g. .pdf file with application/zip MIME)
+
 # Risk scores by file type
 RISKY_MIME_SCORES = {
     # Direct execution
@@ -224,15 +229,26 @@ def analyze_attachments(email_raw):
     attachments = extract_attachments(email_raw)
 
     if not attachments:
-        return 0.0
+        return 0.0, {"risky_extension": False, "encrypted_archive": False, "mime_mismatch": False, "risky_files": [], "total_attachments": 0}
 
     # Run all checks and take maximum score
     mime_score = check_risky_mime_types(attachments)
     zip_score = check_encrypted_archives(attachments)
     mismatch_score = check_mime_extension_mismatch(attachments)
 
-    # Combine scores - take the maximum
     attachment_score = max(mime_score, zip_score, mismatch_score)
 
-    return attachment_score
+    risky_files = [
+        a["filename"] for a in attachments
+        if RISKY_MIME_SCORES.get("." + a["filename"].lower().rsplit(".", 1)[-1], 0.0) > 0
+        and "." in a["filename"]
+    ]
+
+    return attachment_score, {
+        "risky_extension": mime_score > 0,
+        "encrypted_archive": zip_score > 0,
+        "mime_mismatch": mismatch_score > 0,
+        "risky_files": risky_files,
+        "total_attachments": len(attachments),
+    }
 

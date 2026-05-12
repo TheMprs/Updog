@@ -1,4 +1,7 @@
 import re
+import email as email_lib
+from email import policy
+
 
 def is_html(content):
     """
@@ -8,7 +11,6 @@ def is_html(content):
     if not content:
         return False
 
-    # Check for common HTML tags and patterns
     html_patterns = [
         r'<html', r'<body', r'<div', r'<p>', r'<a\s', r'<img',
         r'<table', r'<tr', r'<form', r'<script', r'<style',
@@ -25,10 +27,8 @@ def is_html(content):
 
 def parse_email(email):
     """
-    Parse full email (headers + body) into structured data.
-
-    Args:
-        email: Full email string with headers and body separated by blank line
+    Parse full email string into structured data.
+    Uses Python's email library to handle QP/base64/multipart decoding automatically.
 
     Returns:
         dict with keys: "subject", "body", "is_html"
@@ -36,23 +36,45 @@ def parse_email(email):
     if not email:
         return {"subject": "", "body": "", "is_html": False}
 
-    # Split headers from body (separated by blank line)
-    parts = email.split('\n\n', 1)
-    headers_str = parts[0] if len(parts) > 0 else ""
-    body = parts[1] if len(parts) > 1 else ""
+    msg = email_lib.message_from_string(email, policy=policy.compat32)
 
-    # Extract subject from headers
-    subject = ""
-    for line in headers_str.split('\n'):
-        if line.lower().startswith('subject:'):
-            subject = line.split(':', 1)[1].strip()
-            break
+    subject = msg.get("Subject", "")
 
-    # Detect if body is HTML
-    html_detected = is_html(body)
+    # walk parts to find the best body candidate (prefer html, fall back to plain)
+    plain_body = ""
+    html_body = ""
+
+    if msg.is_multipart():
+        for part in msg.walk():
+            ctype = part.get_content_type()
+            if ctype == "text/html" and not html_body:
+                html_body = _decode_part(part)
+            elif ctype == "text/plain" and not plain_body:
+                plain_body = _decode_part(part)
+    else:
+        ctype = msg.get_content_type()
+        body = _decode_part(msg)
+        if ctype == "text/html":
+            html_body = body
+        else:
+            plain_body = body
+
+    body = html_body if html_body else plain_body
 
     return {
         "subject": subject,
         "body": body,
-        "is_html": html_detected
+        "is_html": bool(html_body),
     }
+
+
+def _decode_part(part):
+    """Decode a message part to a string, handling charset and transfer encoding."""
+    try:
+        payload = part.get_payload(decode=True)  # decodes QP/base64 automatically
+        if payload is None:
+            return ""
+        charset = part.get_content_charset() or "utf-8"
+        return payload.decode(charset, errors="replace")
+    except Exception:
+        return ""
