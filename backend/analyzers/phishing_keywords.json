@@ -1,0 +1,38 @@
+{
+  "english": {
+    "money": [
+      "airdrop", "balance", "bank", "bill", "bitcoin", "bonus", "btc", "cash", "cashapp",
+      "chosen", "claim", "collection", "compensation", "credit", "crypto", "cryptocurrency",
+      "deal", "debt", "discount", "due", "earn", "ethereum", "exchange", "exclusive",
+      "free", "gift", "giveaway", "income", "investment", "invoice", "jackpot",
+      "limited", "loan", "lottery", "mining", "money", "nft", "offer", "opportunity", "order",
+      "outstanding", "overdue", "pay", "payment", "payout", "paypal", "prize", "profit",
+      "refund", "replenishment", "reward", "save", "selected", "subscription", "time", "token",
+      "transfer", "upgrade", "venmo", "wallet", "wire", "winner",
+      "withdrawal", "zelle"
+    ],
+    "urgency": [
+      "asap", "chance", "compromise", "confirm", "critical", "deadline",
+      "emergency", "expires", "final", "hours", "immediately",
+      "important", "last", "notice", "now", "only", "reminder", "risk", "soon", "suspicious",
+      "today", "urgent"
+    ],
+    "actions": [
+      "act", "activate", "authenticate", "click", "here",
+      "identity", "login", "needed", "re-enable", "reactivate",
+      "register", "sign", "unlock", "update", "validate", "verify"
+    ],
+    "account": [
+      "account", "action", "activity", "alert", "compromise", "contact", "expire", "hold",
+      "locked", "password", "required", "secure", "security", "suspended", "unusual", "warning"
+    ],
+    "authority": [
+      "authority", "court", "enforcement", "fine", "indictment", "law", "legal",
+      "notice", "official", "penalty", "proceeding", "subpoena", "warrant"
+    ],
+    "social": [
+      "client", "customer", "dear", "friend", "madam", "member", "sir", "user", "valued"
+    ]
+  },
+  "hebrew": {}
+}

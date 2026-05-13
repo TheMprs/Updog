@@ -249,6 +249,7 @@ def analyze_attachments(email_raw):
         "encrypted_archive": zip_score > 0,
         "mime_mismatch": mismatch_score > 0,
         "risky_files": risky_files,
+        "filenames": [a["filename"] for a in attachments],
         "total_attachments": len(attachments),
     }
 

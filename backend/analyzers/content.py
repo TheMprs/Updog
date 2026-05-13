@@ -1,6 +1,8 @@
 from langdetect import detect, LangDetectException
 from bs4 import BeautifulSoup
 import re
+import json
+import os
 from .utils import parse_email
 
 # tests conducted on content.py:
@@ -8,39 +10,15 @@ from .utils import parse_email
 # 2. check if email is in unexpected language (lang is not heb/eng)
 # 3. detect HTML obfuscation techniques (invisible text, tiny fonts, base64 encoding)
 
-# English phishing keywords
-ENGLISH_PHISHING_KEYWORDS = {
-    # money related
-    "due", "bill", "payment", "invoice", "transfer", "bank", "cash", "reward", "prize",
-    "winner", "lottery", "free", "offer", "claim", "credit", "upgrade", "subscription", "refund",
-    "compensation", "bonus", "gift", "deal", "discount", "limited time", "exclusive", "save",
-    "earn", "income", "investment", "opportunity", "money", "pay", "wire", "western union",
-    "paypal", "venmo", "zelle", "cashapp", "cryptocurrency", "bitcoin", "ethereum", "crypto",
-    "wallet", "exchange", "mining", "token", "nft",
-    "balance", "replenishment", "withdrawal", "payout", "profit", "airdrop", "giveaway",
-    "jackpot", "selected", "chosen", "overdue", "outstanding", "debt", "collection",
-    # urgency related
-    "confirm", "urgent", "act now", "immediately", "asap", "important", "last chance",
-    "final", "notice", "deadline", "expires", "soon", "critical", "emergency", "risk", "suspicious", "compromise",
-    "24 hours", "expires today", "today only", "last opportunity", "immediately contact",
-    "your account will be",
-    # actions needed
-    "verify", "validate", "authenticate", "confirm identity", "click here",
-    "update", "re-enable", "reactivate", "needed", "act", "login", "sign in", "register",
-    "claim now", "verify now", "confirm now", "activate now", "unlock", "click below", "tap here",
-    # account related
-    "locked", "unusual activity", "password", "expire", "suspended", "contact",
-    "account", "action required", "alert", "warning", "compromise", "secure", "security",
-    # authority / legal threats
-    "legal notice", "court", "proceeding", "indictment", "authority", "official notice",
-    "law enforcement", "subpoena", "warrant", "penalty", "fine",
-    # high language keywords
-    "dear", "sir", "madam", "customer", "user", "member", "valued", "client", "friend",
-}
+def _load_keywords():
+    path = os.path.join(os.path.dirname(__file__), "phishing_keywords.json")
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    english = [kw for section in data.get("english", {}).values() for kw in section]
+    hebrew  = [kw for section in data.get("hebrew",  {}).values() for kw in section]
+    return english, hebrew
 
-# Hebrew phishing keywords
-HEBREW_PHISHING_KEYWORDS = {
-}
+ENGLISH_PHISHING_KEYWORDS, HEBREW_PHISHING_KEYWORDS = _load_keywords()
 
 SAFE_LANGUAGES = {"en", "he"}  # English and Hebrew
 
@@ -123,12 +101,13 @@ def count_phishing_keywords(text, keywords):
         count += text_lower.count(keyword)
     return count
 
-def analyze_content(email):
+def analyze_content(email, attachment_filenames=None):
     """
     Analyze email for phishing indicators.
 
     Args:
         email: Full email string (headers + body)
+        attachment_filenames: Optional list of attachment filenames to scan for keywords
 
     Returns:
         content_score: 0.0 (safe) to 1.0 (malicious)
@@ -138,7 +117,8 @@ def analyze_content(email):
     email_body = parsed["body"]
     email_html = parsed["body"] if parsed["is_html"] else None
 
-    combined_text = f"{email_subject} {email_body}".strip()
+    filenames_text = " ".join(attachment_filenames) if attachment_filenames else ""
+    combined_text = f"{email_subject} {email_body} {filenames_text}".strip()
 
     if not combined_text and not email_html:
         return 0.0, {"phishing_keywords": 0, "detected_language": None, "obfuscation_detected": False}

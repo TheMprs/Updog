@@ -19,6 +19,7 @@ SIGNAL_FLOORS = [
     ("attachment", 0.6, 65),  # risky file type (.exe, .ps1 etc.) → at least 65
     ("sender",     0.7, 55),  # newly registered domain or free provider → at least 55
     ("sender",     0.9, 70),  # clear spoofing/typosquat → at least 70
+    ("content",    0.7, 55),  # very high phishing keyword concentration → at least 55
 ]
 
 SCORE_BANDS = [
@@ -80,9 +81,9 @@ def generate_bullets(signals: dict) -> list:
 
 def analyze(email: str) -> dict:
     header_score,     header_signals     = analyze_headers(email)
-    content_score,    content_signals    = analyze_content(email)
-    url_score,        url_signals        = analyze_urls(email)
     attachment_score, attachment_signals = analyze_attachments(email)
+    content_score,    content_signals    = analyze_content(email, attachment_signals.get("filenames", []))
+    url_score,        url_signals        = analyze_urls(email)
     sender_score,     sender_signals     = analyze_sender(email)
 
     has_urls        = url_signals.get("total_urls", 0) > 0
