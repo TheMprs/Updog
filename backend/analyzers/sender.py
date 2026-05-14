@@ -140,14 +140,24 @@ def check_display_name_spoofing(from_header, sender_domain):
 
     return 0.0
 
-def check_free_email_provider(sender_domain):
+def check_free_email_provider(sender_domain, from_header=""):
     """
-    Check if sender is using free email provider (@gmail, @yahoo, etc) sus if sender claims to be from a major brand.
-    Returns free_email_score: 0.0 to 1.0 
+    Flag free provider only when the display name claims to be a known brand.
+    A small business legitimately using Gmail should not be penalized.
     """
-    if not sender_domain:
+    if not sender_domain or sender_domain.lower() not in FREE_EMAIL_PROVIDERS:
         return 0.0
-    return 0.3 if sender_domain.lower() in FREE_EMAIL_PROVIDERS else 0.0
+
+    display_name_match = re.match(r'^"?([^"<]+)"?\s*<', from_header)
+    if not display_name_match:
+        return 0.0
+
+    display_name = display_name_match.group(1).strip().lower()
+    for keyword in MAJOR_BRAND_KEYWORDS:
+        if keyword in display_name:
+            return 0.3
+
+    return 0.0
 
 def check_reply_to_mismatch(from_domain, reply_to_domain):
     """
@@ -215,7 +225,7 @@ def analyze_sender(email):
     age_score = check_domain_age(sender_domain)
     typo_score, typo_target = check_typosquatting(sender_domain)
     spoofing_score = check_display_name_spoofing(from_header, sender_domain)
-    free_email_score = check_free_email_provider(sender_domain)
+    free_email_score = check_free_email_provider(sender_domain, from_header)
     mismatch_score = check_reply_to_mismatch(sender_domain, reply_to_domain)
     undisclosed_score = check_undisclosed_recipients(to_header)
 

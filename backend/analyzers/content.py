@@ -47,14 +47,16 @@ def detect_obfuscation(email_html):
         style = tag.get('style', '').lower()
         clean_style = style.replace(" ", "")
 
-        # White text on white/transparent background
-        if 'color' in style and ('white' in style or '#fff' in style or '#ffffff' in style):
-            # Check if background is specifically white/transparent
-            bg_match = re.search(r'background[^:]*:\s*([^;]+)', style)
-            if bg_match:
-                bg_value = bg_match.group(1).lower()
-                if any(x in bg_value for x in ['white', '#fff', '#ffffff', 'transparent']):
-                    obfuscation_count += 1
+        # White text on white/transparent background — only match when text color itself is white
+        text_color_match = re.search(r'(?<![a-z-])color\s*:\s*([^;]+)', style)
+        if text_color_match:
+            text_color = text_color_match.group(1).strip()
+            if any(x in text_color for x in ['white', '#fff', '#ffffff', 'transparent']):
+                bg_match = re.search(r'background[^:]*:\s*([^;]+)', style)
+                if bg_match:
+                    bg_value = bg_match.group(1).lower()
+                    if any(x in bg_value for x in ['white', '#fff', '#ffffff', 'transparent']):
+                        obfuscation_count += 1
                     
         # Detect font sizes smaller than 1px
         font_size_pattern = r'font-size\s*:\s*([\d.]+)(px|em|rem)?'
