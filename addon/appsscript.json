@@ -1,0 +1,27 @@
+{
+  "timeZone": "Asia/Jerusalem",
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "addOns": {
+    "common": {
+      "name": "Email Shield",
+      "logoUrl": "https://www.gstatic.com/images/icons/material/system/2x/security_black_24dp.png",
+      "homepageTrigger": {
+        "runFunction": "onHomepage"
+      }
+    },
+    "gmail": {
+      "contextualTriggers": [
+        {
+          "unconditional": {},
+          "onTriggerFunction": "onGmailMessage"
+        }
+      ]
+    }
+  },
+  "oauthScopes": [
+  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/script.external_request",
+  "https://www.googleapis.com/auth/gmail.addons.execute"
+]
+}
