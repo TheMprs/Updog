@@ -173,6 +173,13 @@ def check_reply_to_mismatch(from_domain, reply_to_domain):
 
     return 0.5
 
+def check_undisclosed_recipients(to_header):
+    """Detect bulk spam pattern where To is hidden."""
+    if not to_header:
+        return 0.0
+    return 0.4 if "undisclosed-recipients" in to_header.lower() else 0.0
+
+
 def analyze_sender(email):
     """
     Analyze sender/domain for phishing indicators.
@@ -200,6 +207,7 @@ def analyze_sender(email):
 
     from_header = headers_dict.get("From", "")
     reply_to_header = headers_dict.get("Reply-To", "")
+    to_header = headers_dict.get("To", "")
 
     sender_domain = _extract_domain(from_header)
     reply_to_domain = _extract_domain(reply_to_header)
@@ -209,22 +217,21 @@ def analyze_sender(email):
     spoofing_score = check_display_name_spoofing(from_header, sender_domain)
     free_email_score = check_free_email_provider(sender_domain)
     mismatch_score = check_reply_to_mismatch(sender_domain, reply_to_domain)
+    undisclosed_score = check_undisclosed_recipients(to_header)
 
-    # High-confidence signals (spoofing, typosquatting, reply-to mismatch) dominate;
-    # low-confidence signals (domain age, free provider) add supporting context
     high_signal = max(spoofing_score, typo_score, mismatch_score)
 
     if high_signal > 0:
-        sender_score = min(1.0, high_signal + age_score * 0.15 + free_email_score * 0.1)
+        sender_score = min(1.0, high_signal + age_score * 0.15 + free_email_score * 0.1 + undisclosed_score * 0.2)
     else:
-        # domain age and free provider as standalone signals
-        sender_score = min(1.0, age_score * 0.7 + free_email_score * 0.3)
+        sender_score = min(1.0, age_score * 0.7 + free_email_score * 0.3 + undisclosed_score * 0.3)
 
     return sender_score, {
-        "display_name_spoof": spoofing_score > 0,
-        "reply_to_mismatch":  mismatch_score > 0,
-        "free_provider_spoof": free_email_score > 0,
-        "typosquat_detected": typo_score > 0,
-        "typosquat_target":   typo_target,
-        "from_domain":        sender_domain,
+        "display_name_spoof":    spoofing_score > 0,
+        "reply_to_mismatch":     mismatch_score > 0,
+        "free_provider_spoof":   free_email_score > 0,
+        "typosquat_detected":    typo_score > 0,
+        "typosquat_target":      typo_target,
+        "from_domain":           sender_domain,
+        "undisclosed_recipients": undisclosed_score > 0,
     }

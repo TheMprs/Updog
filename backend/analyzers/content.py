@@ -97,13 +97,26 @@ def detect_language(text):
     except LangDetectException:
         return None
 
-def count_phishing_keywords(text, keywords):
-    """Count occurrences of phishing keywords in text"""
-    text_lower = text.lower()
-    count = 0
-    for keyword in keywords:
-        count += text_lower.count(keyword)
-    return count
+def detect_caps_abuse(text):
+    """Detect excessive all-caps usage — a classic spam signal."""
+    if not text or len(text.strip()) < 20:
+        return 0.0
+    words = re.findall(r'\b[A-Za-z]{3,}\b', text)
+    if len(words) < 5:
+        return 0.0
+    ratio = sum(1 for w in words if w.isupper()) / len(words)
+    if ratio >= 0.4:
+        return 0.5
+    if ratio >= 0.25:
+        return 0.25
+    return 0.0
+
+
+def detect_large_money_amounts(text):
+    """Detect suspicious large monetary amounts (advance-fee fraud indicator)."""
+    pattern = r'\$[\d,]+\s*(million|billion)|\b\d+\s*(million|billion)\s*(dollar|usd)'
+    return 0.4 if re.search(pattern, text, re.IGNORECASE) else 0.0
+
 
 def analyze_content(email, attachment_filenames=None):
     """
@@ -160,12 +173,15 @@ def analyze_content(email, attachment_filenames=None):
     if email_html:
         obfuscation_score = detect_obfuscation(email_html)
 
-    # Combine scores: keywords + language penalty + obfuscation (only if significant)
+    caps_score  = detect_caps_abuse(combined_text)
+    money_score = detect_large_money_amounts(combined_text)
     effective_obfuscation = obfuscation_score if obfuscation_score >= 0.5 else 0.0
-    content_score = min(1.0, keyword_score + language_penalty + effective_obfuscation)
+    content_score = min(1.0, keyword_score + language_penalty + effective_obfuscation + caps_score + money_score)
 
     return content_score, {
-        "phishing_keywords": phishing_count,
-        "detected_language": detected_lang,
+        "phishing_keywords":   phishing_count,
+        "detected_language":   detected_lang,
         "obfuscation_detected": obfuscation_score >= 0.5,
+        "caps_abuse":          caps_score > 0,
+        "large_money_amount":  money_score > 0,
     }

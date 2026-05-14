@@ -19,7 +19,8 @@ SIGNAL_FLOORS = [
     ("attachment", 0.6, 65),  # risky file type (.exe, .ps1 etc.) → at least 65
     ("sender",     0.7, 55),  # newly registered domain or free provider → at least 55
     ("sender",     0.9, 70),  # clear spoofing/typosquat → at least 70
-    ("content",    0.7, 55),  # very high phishing keyword concentration → at least 55
+    ("content",    0.7, 55),  # high phishing content → at least 55
+    ("content",    0.9, 70),  # very high phishing content → at least 70
 ]
 
 SCORE_BANDS = [
@@ -43,6 +44,9 @@ BULLET_RULES = [
     (lambda s: s.get("mime_mismatch"),                    "❌", "Attachment file type is disguised"),
     (lambda s: s.get("encrypted_archive"),                "⚠️", "Password-protected archive attached"),
     (lambda s: s.get("risky_extension"),                  "⚠️", "Risky attachment type detected"),
+    (lambda s: s.get("caps_abuse"),                       "⚠️", "Excessive use of capitals detected"),
+    (lambda s: s.get("large_money_amount"),               "❌", "Large monetary amounts mentioned"),
+    (lambda s: s.get("undisclosed_recipients"),           "⚠️", "Email sent to undisclosed recipients"),
 ]
 
 
