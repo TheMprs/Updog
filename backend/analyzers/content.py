@@ -24,6 +24,11 @@ def count_phishing_categories(text, keyword_dict):
     text_lower = text.lower()
     return sum(1 for keywords in keyword_dict.values() if any(kw in text_lower for kw in keywords))
 
+def count_phishing_matches(text, keyword_dict):
+    """Count total individual keyword matches across all categories."""
+    text_lower = text.lower()
+    return sum(1 for keywords in keyword_dict.values() for kw in keywords if kw in text_lower)
+
 SAFE_LANGUAGES = {"en", "he"}  # English and Hebrew
 
 def detect_obfuscation(email_html):
@@ -159,16 +164,25 @@ def analyze_content(email, attachment_filenames=None):
     if detected_lang and detected_lang not in SAFE_LANGUAGES:
         language_penalty = 0.15  # Minor boost for unexpected language
 
-    # Count phishing keyword categories with at least one hit
+    # Count phishing keyword categories and total matches
     phishing_count = 0
+    phishing_matches = 0
     if detected_lang == "en" or detected_lang is None:
         phishing_count = count_phishing_categories(combined_text, ENGLISH_PHISHING_KEYWORDS)
+        phishing_matches = count_phishing_matches(combined_text, ENGLISH_PHISHING_KEYWORDS)
     elif detected_lang == "he":
         phishing_count = count_phishing_categories(combined_text, HEBREW_PHISHING_KEYWORDS)
+        phishing_matches = count_phishing_matches(combined_text, HEBREW_PHISHING_KEYWORDS)
 
-    # Normalize by total categories (score only rises when multiple category types are hit)
+    # Density: ratio of keyword matches to total words — long legitimate emails dilute the score
+    total_words = max(len(re.findall(r'\b\w+\b', combined_text)), 1)
+    density = phishing_matches / total_words
+    # Scale: 5% density = 0.5 multiplier, 10%+ density = 1.0 multiplier
+    density_multiplier = min(1.0, density / 0.10)
+
     total_categories = max(len(ENGLISH_PHISHING_KEYWORDS), 1)
-    keyword_score = min(0.7, phishing_count / total_categories)
+    category_ratio = phishing_count / total_categories
+    keyword_score = min(0.7, category_ratio * density_multiplier)
 
     # Detect HTML obfuscation (if HTML is provided)
     obfuscation_score = 0.0
