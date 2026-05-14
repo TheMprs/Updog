@@ -14,11 +14,15 @@ def _load_keywords():
     path = os.path.join(os.path.dirname(__file__), "phishing_keywords.json")
     with open(path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    english = [kw for section in data.get("english", {}).values() for kw in section]
-    hebrew  = [kw for section in data.get("hebrew",  {}).values() for kw in section]
-    return english, hebrew
+    return data.get("english", {}), data.get("hebrew", {})
 
 ENGLISH_PHISHING_KEYWORDS, HEBREW_PHISHING_KEYWORDS = _load_keywords()
+
+
+def count_phishing_categories(text, keyword_dict):
+    """Count how many categories have at least one keyword match."""
+    text_lower = text.lower()
+    return sum(1 for keywords in keyword_dict.values() if any(kw in text_lower for kw in keywords))
 
 SAFE_LANGUAGES = {"en", "he"}  # English and Hebrew
 
@@ -140,26 +144,25 @@ def analyze_content(email, attachment_filenames=None):
     if detected_lang and detected_lang not in SAFE_LANGUAGES:
         language_penalty = 0.15  # Minor boost for unexpected language
 
-    # Count phishing keywords based on detected language
+    # Count phishing keyword categories with at least one hit
     phishing_count = 0
-    if detected_lang == "en" or detected_lang is None:  # Default to English if detection fails
-        phishing_count = count_phishing_keywords(combined_text, ENGLISH_PHISHING_KEYWORDS)
+    if detected_lang == "en" or detected_lang is None:
+        phishing_count = count_phishing_categories(combined_text, ENGLISH_PHISHING_KEYWORDS)
     elif detected_lang == "he":
-        phishing_count = count_phishing_keywords(combined_text, HEBREW_PHISHING_KEYWORDS)
-    else:
-        # For other languages, no keyword detection
-        phishing_count = 0
+        phishing_count = count_phishing_categories(combined_text, HEBREW_PHISHING_KEYWORDS)
 
-    # Normalize keyword count to 0-1 score (cap at 0.7 to leave room for other factors)
-    keyword_score = min(0.7, phishing_count / 10)
+    # Normalize by total categories (score only rises when multiple category types are hit)
+    total_categories = max(len(ENGLISH_PHISHING_KEYWORDS), 1)
+    keyword_score = min(0.7, phishing_count / total_categories)
 
     # Detect HTML obfuscation (if HTML is provided)
     obfuscation_score = 0.0
     if email_html:
         obfuscation_score = detect_obfuscation(email_html)
 
-    # Combine scores: keywords + language penalty + obfuscation
-    content_score = min(1.0, keyword_score + language_penalty + obfuscation_score)
+    # Combine scores: keywords + language penalty + obfuscation (only if significant)
+    effective_obfuscation = obfuscation_score if obfuscation_score >= 0.5 else 0.0
+    content_score = min(1.0, keyword_score + language_penalty + effective_obfuscation)
 
     return content_score, {
         "phishing_keywords": phishing_count,
