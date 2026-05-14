@@ -1,0 +1,20 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', 'us-central1-docker.pkg.dev/email-extension-496011/updog/updog', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'us-central1-docker.pkg.dev/email-extension-496011/updog/updog']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    args:
+      - 'gcloud'
+      - 'run'
+      - 'deploy'
+      - 'updog'
+      - '--image=us-central1-docker.pkg.dev/email-extension-496011/updog/updog'
+      - '--region=us-central1'
+      - '--platform=managed'
+      - '--allow-unauthenticated'
+
+images:
+  - 'us-central1-docker.pkg.dev/email-extension-496011/updog/updog'

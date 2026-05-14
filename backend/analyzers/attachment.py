@@ -245,7 +245,7 @@ def analyze_attachments(email_raw):
     ]
 
     return attachment_score, {
-        "risky_extension": mime_score > 0,
+        "risky_extension": mime_score >= 0.5,
         "encrypted_archive": zip_score > 0,
         "mime_mismatch": mismatch_score > 0,
         "risky_files": risky_files,

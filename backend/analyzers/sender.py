@@ -171,7 +171,7 @@ def check_reply_to_mismatch(from_domain, reply_to_domain):
     if from_base == reply_base:
         return 0.0
 
-    return 0.8
+    return 0.5
 
 def analyze_sender(email):
     """

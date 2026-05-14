@@ -14,7 +14,7 @@ function analyzeEmail(messageId) {
   var options = {
     method:      "post",
     contentType: "application/json",
-    payload:     JSON.stringify({ email: rawEmail }),
+    payload:     JSON.stringify({ raw_email: rawEmail }),
     headers:     { "Authorization": "Bearer " + (authToken || "") },
     muteHttpExceptions: true,
   };

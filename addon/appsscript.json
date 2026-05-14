@@ -4,8 +4,8 @@
   "runtimeVersion": "V8",
   "addOns": {
     "common": {
-      "name": "Email Shield",
-      "logoUrl": "https://www.gstatic.com/images/icons/material/system/2x/security_black_24dp.png",
+      "name": "UpDog",
+      "logoUrl": "https://drive.google.com/uc?export=view&id=1h-YXXWAwDGxjDY0v_80xVclFUKbjgHFd",
       "homepageTrigger": {
         "runFunction": "onHomepage"
       }

@@ -23,9 +23,9 @@ function buildResultCard(result) {
   var card = CardService.newCardBuilder()
     .setHeader(
       CardService.newCardHeader()
-        .setTitle("Email Shield")
+        .setTitle("UpDog")
         .setSubtitle("Phishing & Malware Scanner")
-        .setImageUrl("https://www.gstatic.com/images/icons/material/system/2x/security_black_24dp.png")
+        .setImageUrl("https://drive.google.com/uc?export=view&id=1h-YXXWAwDGxjDY0v_80xVclFUKbjgHFd")
     );
 
   // ── Verdict section ──
@@ -96,9 +96,9 @@ function buildHomepageCard() {
   return CardService.newCardBuilder()
     .setHeader(
       CardService.newCardHeader()
-        .setTitle("Email Shield")
+        .setTitle("UpDog")
         .setSubtitle("Phishing & Malware Scanner")
-        .setImageUrl("https://www.gstatic.com/images/icons/material/system/2x/security_black_24dp.png")
+        .setImageUrl("https://drive.google.com/uc?export=view&id=1h-YXXWAwDGxjDY0v_80xVclFUKbjgHFd")
     )
     .addSection(
       CardService.newCardSection().addWidget(
@@ -116,8 +116,9 @@ function buildErrorCard(message) {
   return CardService.newCardBuilder()
     .setHeader(
       CardService.newCardHeader()
-        .setTitle("Email Shield")
+        .setTitle("UpDog")
         .setSubtitle("Analysis failed")
+        .setImageUrl("https://drive.google.com/uc?export=view&id=1h-YXXWAwDGxjDY0v_80xVclFUKbjgHFd")
     )
     .addSection(
       CardService.newCardSection().addWidget(
