@@ -41,7 +41,7 @@ def parse_authentication_results(auth_header):
 
     # extract spf, dkim, dmarc status from header
     spf_match = re.search(r'spf=(\w+)', auth_header, re.IGNORECASE)
-    dkim_match = re.search(r'dkim=(\w+)', auth_header, re.IGNORECASE)
+    dkim_match = re.search(r'(?<!\w)dkim=(\w+)', auth_header, re.IGNORECASE)
     dmarc_match = re.search(r'dmarc=(\w+)', auth_header, re.IGNORECASE)
 
     if spf_match:
@@ -72,11 +72,14 @@ def check_auth_failures(headers):
     auth_header = headers.get("Authentication-Results", "")
     from_address = headers.get("From", "")
 
+    if not auth_header:
+        return 0.0
+
     auth_status = parse_authentication_results(auth_header)
 
-    # count failures (0-3) - sus if auth failed or is missing 
-    failures = sum(1 for check in ["spf", "dkim", "dmarc"] 
-                   if auth_status[check] is None or auth_status[check] != "pass")
+    # count explicit failures only — missing (None) means header not present, not a failure
+    failures = sum(1 for check in ["spf", "dkim", "dmarc"]
+                   if auth_status[check] is not None and auth_status[check] != "pass")
     
     # base score: 0.3 per failure
     score = failures * 0.3
@@ -117,7 +120,7 @@ def analyze_headers(email):
 
     auth_score = check_auth_failures(headers_dict)
     spam_score = check_spam_score(headers_dict)
-    combined_score = min(1.0, auth_score * 0.7 + spam_score * 0.3)
+    combined_score = auth_score
 
     return combined_score, {
         "spf": auth_status["spf"],

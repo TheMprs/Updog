@@ -1,6 +1,7 @@
 import os
 import re
 import requests
+from urllib.parse import urlparse, parse_qs
 from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 from .utils import parse_email
@@ -31,6 +32,18 @@ THREAT_TYPE_SCORES = {
     "UNWANTED_SOFTWARE": 0.6,
     "POTENTIALLY_HARMFUL_APPLICATION": 0.4
 }
+
+def _unwrap_gmail_url(url):
+    """Unwrap Gmail tracking URLs (google.com/url?q=...) to reveal the real destination."""
+    try:
+        parsed = urlparse(url)
+        if parsed.netloc in ('www.google.com', 'google.com') and parsed.path == '/url':
+            qs = parse_qs(parsed.query)
+            if 'q' in qs:
+                return qs['q'][0]
+    except Exception:
+        pass
+    return url
 
 def extract_urls(email_html):
     """
@@ -133,12 +146,13 @@ def analyze_urls(email):
     """
     api_key = os.getenv('SAFE_BROWSING_API_KEY')
     if not api_key or api_key.strip() == "":
-        raise ValueError("Safe Browsing API key not found in environment variables.")
+        return 0.0, {"malicious_urls": [], "total_urls": 0}
 
     parsed = parse_email(email)
     body = parsed["body"]
 
     urls = extract_urls(body)
+    urls = [_unwrap_gmail_url(u) for u in urls]
     urls = normalize_urls_for_api(urls)
 
     # no urls found - return empty analysis

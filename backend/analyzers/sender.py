@@ -99,18 +99,28 @@ def check_typosquatting(sender_domain):
     if not sender_domain:
         return 0.0, None
 
-    sender_base = sender_domain.split('.')[0].lower()
+    # exact match or legitimate subdomain (mail.paypal.com) — always clean
+    for major in MAJOR_DOMAINS:
+        if sender_domain == major or sender_domain.endswith('.' + major):
+            return 0.0, None
+
+    sender_labels = sender_domain.lower().split('.')
+    sender_base = sender_labels[0]
 
     for major in MAJOR_DOMAINS:
-        if sender_domain == major:
-            return 0.0, None  # exact match is legitimate
         major_base = major.split('.')[0].lower()
         if len(major_base) < 4:
             continue
+
+        # typosquatting: edit distance on primary label (paypai.com, arnazon.com)
         dist = _levenshtein(sender_base, major_base)
         if dist == 1:
             return 0.9, major
         if dist == 2 and len(major_base) >= 6:
+            return 0.7, major
+
+        # subdomain spoofing: brand name used as a label (paypal.evil.com)
+        if major_base in sender_labels:
             return 0.7, major
 
     return 0.0, None
