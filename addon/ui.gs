@@ -1,5 +1,6 @@
 var SCORE_CONFIG = {
   green:  { icon: "✅", label: "Safe",             color: "#2E7D32" },
+  lime:   { icon: "🔵", label: "Likely Safe",      color: "#558B2F" },
   yellow: { icon: "⚠️",  label: "Suspicious",       color: "#F57F17" },
   orange: { icon: "🔶", label: "Likely Malicious",  color: "#E65100" },
   red:    { icon: "🚨", label: "Malicious",          color: "#B71C1C" },
@@ -41,7 +42,7 @@ function buildResultCard(result) {
   card.addSection(verdictSection);
 
   // ── Findings section ──
-  if (score >= 31 && bullets.length > 0) {
+  if (score >= 15 && bullets.length > 0) {
     var findingsSection = CardService.newCardSection()
       .setHeader("Findings");
 

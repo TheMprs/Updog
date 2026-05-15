@@ -232,22 +232,24 @@ class TestAnalyzeUrls:
 
     @patch('analyzers.url.requests.post')
     def test_api_key_missing(self, mock_post):
-        # Verify ValueError raised when API key not in environment
+        # Missing API key → silently returns safe result (no error raised)
         import os
         with patch.dict(os.environ, {}, clear=True):
-            with pytest.raises(ValueError, match="Safe Browsing API key"):
-                email = "From: test@example.com\n\n<a href=\"https://example.com\">Link</a>"
-                analyze_urls(email)
+            email = "From: test@example.com\n\n<a href=\"https://example.com\">Link</a>"
+            score, signals = analyze_urls(email)
+        assert score == 0.0
+        assert signals["malicious_urls"] == []
 
     @patch('analyzers.url.requests.post')
     def test_api_request_timeout(self, mock_post):
-        # Verify Timeout exception propagates when API request times out
+        # Timeout is swallowed after retries — returns safe result
         import requests
         mock_post.side_effect = requests.Timeout()
-
-        with pytest.raises(requests.Timeout):
+        import os
+        with patch.dict(os.environ, {'SAFE_BROWSING_API_KEY': 'test-key'}):
             email = "From: test@example.com\n\n<a href=\"https://example.com\">Link</a>"
-            analyze_urls(email)
+            score, signals = analyze_urls(email)
+        assert score == 0.0
 
     @patch('analyzers.url.requests.post')
     def test_api_retry_on_failure(self, mock_post):

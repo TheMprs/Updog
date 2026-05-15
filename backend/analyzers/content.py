@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import re
 import json
 import os
-from .utils import parse_email
+from .utils import parse_email, is_html
 
 # tests conducted on content.py:
 # 1. parse email for phishing keywords
@@ -153,7 +153,7 @@ def analyze_content(email, attachment_filenames=None):
     parsed = parse_email(email)
     email_subject = parsed["subject"]
     email_body = parsed["body"]
-    email_html = parsed["body"] if parsed["is_html"] else None
+    email_html = parsed["body"] if (parsed["is_html"] or is_html(parsed["body"])) else None
 
     filenames_text = " ".join(attachment_filenames) if attachment_filenames else ""
     combined_text = f"{email_subject} {email_body} {filenames_text}".strip()

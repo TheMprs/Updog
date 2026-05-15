@@ -1,4 +1,5 @@
 import re
+import concurrent.futures
 
 from analyzers.header import analyze_headers
 from analyzers.content import analyze_content
@@ -39,7 +40,8 @@ SIGNAL_FLOORS = [
 ]
 
 SCORE_BANDS = [
-    (0,  30,  "Safe",             "green"),
+    (0,  14,  "Safe",             "green"),
+    (15, 30,  "Likely Safe",      "lime"),
     (31, 60,  "Suspicious",       "yellow"),
     (61, 80,  "Likely Malicious", "orange"),
     (81, 100, "Malicious",        "red"),
@@ -124,12 +126,36 @@ def generate_bullets(signals: dict) -> list:
     ]
 
 
+_SAFE_HEADER_RESULT  = (0.0, {"spf": None, "dkim": None, "dmarc": None, "is_major_domain": False, "spam_score": 0.0})
+_SAFE_ATTACH_RESULT  = (0.0, {"risky_extension": False, "encrypted_archive": False, "mime_mismatch": False, "risky_files": [], "filenames": [], "total_attachments": 0})
+_SAFE_URL_RESULT     = (0.0, {"malicious_urls": [], "total_urls": 0})
+_SAFE_CONTENT_RESULT = (0.0, {"phishing_keywords": 0, "detected_language": None, "high_keyword_density": False, "obfuscation_detected": False, "obfuscation_triggers": None, "caps_abuse": False, "large_money_amount": False})
+_SAFE_SENDER_RESULT  = (0.0, {"display_name_spoof": False, "reply_to_mismatch": False, "free_provider_spoof": False, "typosquat_detected": False, "typosquat_auth_mitigated": False, "typosquat_target": None, "from_domain": "", "undisclosed_recipients": False, "domain_age_unknown": False, "domain_recent_breach": False, "breach_info": None, "suspicious_tld": False})
+
+
+def _safe(future, fallback):
+    try:
+        return future.result()
+    except Exception:
+        return fallback
+
+
 def analyze(email: str) -> dict:
-    header_score,     header_signals     = analyze_headers(email)
-    attachment_score, attachment_signals = analyze_attachments(email)
-    content_score,    content_signals    = analyze_content(email, attachment_signals.get("filenames", []))
-    url_score,        url_signals        = analyze_urls(email)
-    sender_score,     sender_signals     = analyze_sender(email, auth=header_signals)
+    # Batch 1: headers, attachments, urls are fully independent
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as ex:
+        hdr_fut  = ex.submit(analyze_headers, email)
+        att_fut  = ex.submit(analyze_attachments, email)
+        url_fut  = ex.submit(analyze_urls, email)
+        header_score,     header_signals     = _safe(hdr_fut, _SAFE_HEADER_RESULT)
+        attachment_score, attachment_signals = _safe(att_fut, _SAFE_ATTACH_RESULT)
+        url_score,        url_signals        = _safe(url_fut, _SAFE_URL_RESULT)
+
+    # Batch 2: content needs attachment filenames, sender needs header auth signals
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as ex:
+        con_fut = ex.submit(analyze_content, email, attachment_signals.get("filenames", []))
+        snd_fut = ex.submit(analyze_sender, email, header_signals)
+        content_score, content_signals = _safe(con_fut, _SAFE_CONTENT_RESULT)
+        sender_score,  sender_signals  = _safe(snd_fut, _SAFE_SENDER_RESULT)
 
     # For forwarded emails, also check the inner sender domain
     inner_from = _extract_inner_from(email)

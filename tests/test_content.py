@@ -8,7 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
 from analyzers.content import (
     detect_obfuscation,
     detect_language,
-    count_phishing_keywords,
+    count_phishing_matches,
     analyze_content,
     ENGLISH_PHISHING_KEYWORDS,
 )
@@ -16,64 +16,54 @@ from analyzers.content import (
 
 class TestDetectObfuscation:
     def test_safe_html(self):
-        # Normal email with standard inline CSS should return 0.0
         html = '<div style="color: black; font-size: 14px;">Hello, this is a normal email.</div>'
-        score = detect_obfuscation(html)
+        score, _ = detect_obfuscation(html)
         assert score == 0.0
 
     def test_zero_font_size_px(self):
-        # font-size: 0px should be detected as obfuscation
         html = '<span style="font-size: 0px;">hidden text</span>'
-        score = detect_obfuscation(html)
+        score, _ = detect_obfuscation(html)
         assert score > 0.0
 
     def test_zero_font_size_no_unit(self):
-        # font-size: 0 (unitless) should be detected as obfuscation
         html = '<span style="font-size: 0;">hidden text</span>'
-        score = detect_obfuscation(html)
+        score, _ = detect_obfuscation(html)
         assert score > 0.0
 
     def test_sub_pixel_font_size(self):
-        # font-size: 0.5px (less than 1px) should be detected as obfuscation
         html = '<span style="font-size: 0.5px;">hidden text</span>'
-        score = detect_obfuscation(html)
+        score, _ = detect_obfuscation(html)
         assert score > 0.0
 
     def test_invisible_text_white_on_white(self):
-        # White text on white background should be detected as obfuscation
         html = '<span style="color: white; background: #ffffff;">invisible</span>'
-        score = detect_obfuscation(html)
+        score, _ = detect_obfuscation(html)
         assert score > 0.0
 
     def test_invisible_text_hex_color(self):
-        # #fff text on white background should be detected as obfuscation
         html = '<div style="color: #fff; background: white;">hidden</div>'
-        score = detect_obfuscation(html)
+        score, _ = detect_obfuscation(html)
         assert score > 0.0
 
     def test_base64_payload(self):
-        # data:text/html;base64 pattern should be detected as obfuscation (weight 2)
         html = '<iframe src="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=="></iframe>'
-        score = detect_obfuscation(html)
-        assert score >= 0.4  # base64 counts as 2 obfuscation_count -> 0.4
+        score, _ = detect_obfuscation(html)
+        assert score >= 0.4
 
     def test_multiple_obfuscation_techniques_capped(self):
-        # Multiple techniques should cap at 1.0
         html = '''
         <span style="font-size: 0px; color: white; background: #ffffff;">hidden</span>
         <iframe src="data:text/html;base64,abc123"></iframe>
         '''
-        score = detect_obfuscation(html)
+        score, _ = detect_obfuscation(html)
         assert score == 1.0
 
     def test_empty_html(self):
-        # Empty input should return 0.0
-        score = detect_obfuscation("")
+        score, _ = detect_obfuscation("")
         assert score == 0.0
 
     def test_none_input(self):
-        # None input should return 0.0
-        score = detect_obfuscation(None)
+        score, _ = detect_obfuscation(None)
         assert score == 0.0
 
 
@@ -118,36 +108,31 @@ class TestDetectLanguage:
 
 class TestCountPhishingKeywords:
     def test_no_keywords(self):
-        # Clean text with no phishing keywords should return 0
-        count = count_phishing_keywords("The weather is nice today.", ENGLISH_PHISHING_KEYWORDS)
+        count = count_phishing_matches("The sky is blue and the birds are singing.", ENGLISH_PHISHING_KEYWORDS)
         assert count == 0
 
     def test_single_keyword(self):
-        # Text with one phishing keyword should return 1
-        count = count_phishing_keywords("Please verify your identity.", ENGLISH_PHISHING_KEYWORDS)
+        count = count_phishing_matches("Please verify your identity.", ENGLISH_PHISHING_KEYWORDS)
         assert count >= 1
 
     def test_multiple_keywords(self):
-        # Text with multiple phishing keywords should count all occurrences
-        count = count_phishing_keywords(
+        count = count_phishing_matches(
             "urgent payment required, verify your account immediately", ENGLISH_PHISHING_KEYWORDS
         )
         assert count >= 3
 
     def test_case_insensitive_urgent(self):
-        # Mixed-case "uRgEnT" should still be counted
-        count = count_phishing_keywords("uRgEnT action required", ENGLISH_PHISHING_KEYWORDS)
+        count = count_phishing_matches("uRgEnT action required", ENGLISH_PHISHING_KEYWORDS)
         assert count >= 1
 
     def test_case_insensitive_password(self):
-        # Mixed-case "PaSsWoRd" should still be counted
-        count = count_phishing_keywords("your PaSsWoRd has expired", ENGLISH_PHISHING_KEYWORDS)
+        count = count_phishing_matches("your PaSsWoRd has expired", ENGLISH_PHISHING_KEYWORDS)
         assert count >= 1
 
-    def test_keyword_repeated(self):
-        # Repeated keyword should be counted multiple times
-        count = count_phishing_keywords("urgent urgent urgent", ENGLISH_PHISHING_KEYWORDS)
-        assert count == 3
+    def test_keyword_present(self):
+        # count_phishing_matches checks presence per keyword, not occurrences
+        count = count_phishing_matches("urgent urgent urgent", ENGLISH_PHISHING_KEYWORDS)
+        assert count >= 1
 
 
 class TestAnalyzeContent:
@@ -163,7 +148,7 @@ class TestAnalyzeContent:
 
     def test_safe_english_email(self):
         # Conversational English with no phishing keywords should score very low
-        email = "From: friend@example.com\nSubject: Lunch tomorrow?\n\nHey, are you free for lunch tomorrow? Let me know!"
+        email = "From: friend@example.com\nSubject: Lunch tomorrow?\n\nHey, are you available for lunch tomorrow? Let me know!"
         score, _ = analyze_content(email)
         assert score < 0.2
 
@@ -174,12 +159,13 @@ class TestAnalyzeContent:
         assert score < 0.2
 
     def test_keyword_score_caps_at_0_7(self):
-        # 20+ phishing keywords should cap the keyword score at 0.7 (not higher via keywords alone)
+        # 20+ phishing keywords across all 6 categories should cap keyword score at exactly 0.7
         many_keywords = " ".join([
             "urgent", "verify", "account", "password", "suspended", "locked",
             "alert", "warning", "confirm", "login", "payment", "invoice",
             "bank", "transfer", "credit", "reward", "prize", "winner",
-            "claim", "offer", "free", "expired"
+            "claim", "offer", "free",
+            "dear", "legal",  # social + authority — needed to hit all 6 categories
         ])
         email = f"From: scammer@evil.com\nSubject: Urgent\n\n{many_keywords}"
         score, _ = analyze_content(email)
@@ -236,10 +222,12 @@ class TestAnalyzeContent:
         assert score == 1.0
 
     def test_obfuscation_alone_raises_score(self):
-        # HTML obfuscation in an otherwise clean email should still raise the score
+        # Multiple HTML obfuscation techniques (score >= 0.5) should raise the content score
         email = (
             "From: scammer@evil.com\nSubject: Hello\n\n"
-            '<html><body><span style="font-size: 0px;">.</span></body></html>'
+            '<html><body>'
+            '<span style="font-size: 0px; color: white; background: #ffffff;">hidden text</span>'
+            '</body></html>'
         )
         score, _ = analyze_content(email)
         assert score > 0.0

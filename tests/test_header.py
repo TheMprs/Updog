@@ -133,20 +133,19 @@ class TestCheckAuthFailures:
         assert score == 0.9  # Capped at 0.9
 
     def test_missing_auth_header(self):
-        # Verify completely missing auth header is treated as all failures
+        # Missing auth header means no explicit failures — score 0.0
         headers = {"From": "user@example.com"}
         score = check_auth_failures(headers)
-        assert score == pytest.approx(0.9)  # All 3 are None = 3 failures
+        assert score == 0.0
 
-    def test_none_values_treated_as_failures(self):
-        # Verify None check results count as failures
+    def test_none_values_not_treated_as_failures(self):
+        # Only explicit failures count — absent checks (None) are not failures
         headers = {
             "Authentication-Results": "spf=pass",
             "From": "user@example.com",
         }
         score = check_auth_failures(headers)
-        # dkim and dmarc are None (treated as failures), spf is pass
-        assert score == 0.6  # 2 failures * 0.3
+        assert score == 0.0
 
 class TestCheckSpamScore:
     def test_normal_score(self):
@@ -199,20 +198,16 @@ class TestAnalyzeHeaders:
         assert score == 0.0
 
     def test_spoofed_apple(self):
-        # Verify spoofed Apple email scores high (0.78)
+        # Major domain with all 3 auth failures → capped at 0.9
         email = "Authentication-Results: spf=fail dkim=fail dmarc=fail\nX-Spam-Score: 5\nFrom: support@apple.com\n\nEmail body"
         score, _ = analyze_headers(email)
-        # auth_score = 0.9, spam_score = 0.5
-        # combined = 0.9 * 0.7 + 0.5 * 0.3 = 0.63 + 0.15 = 0.78
-        assert 0.77 < score < 0.79
+        assert score == 0.9
 
     def test_suspicious_email(self):
-        # Verify email with mixed failures and spam scores 0.63
+        # Two auth failures on non-major domain → 2 * 0.3 = 0.6
         email = "Authentication-Results: spf=fail dkim=pass dmarc=fail\nX-Spam-Score: 7\nFrom: admin@example.com\n\nEmail body"
         score, _ = analyze_headers(email)
-        # auth_score = 0.6, spam_score = 0.7
-        # combined = 0.6 * 0.7 + 0.7 * 0.3 = 0.42 + 0.21 = 0.63
-        assert 0.62 < score < 0.64
+        assert score == pytest.approx(0.6)
 
     def test_signals_returned(self):
         email = "Authentication-Results: spf=pass dkim=fail dmarc=pass\nX-Spam-Score: 3\nFrom: user@apple.com\n\nBody"

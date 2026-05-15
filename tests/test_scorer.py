@@ -19,62 +19,63 @@ class TestComputeScore:
 
     def test_all_zeros_returns_zero(self):
         """All zero scores should produce 0."""
-        assert compute_score(self._all_scores(), has_urls=True, has_attachments=True) == 0
+        score, _ = compute_score(self._all_scores(), has_urls=True, has_attachments=True)
+        assert score == 0
 
     def test_all_ones_returns_hundred(self):
         """All perfect scores should produce 100."""
-        assert compute_score(self._all_scores(header=1.0, sender=1.0, url=1.0, content=1.0, attachment=1.0), True, True) == 100
+        score, _ = compute_score(self._all_scores(header=1.0, sender=1.0, url=1.0, content=1.0, attachment=1.0), True, True)
+        assert score == 100
 
     def test_url_dropped_when_no_urls(self):
         """Without URLs the url weight is excluded and remaining weights renormalize."""
-        # url=1.0 but has_urls=False — should not push score up
         scores_with = self._all_scores(url=1.0)
-        score_no_url = compute_score(scores_with, has_urls=False, has_attachments=False)
-        score_with_url = compute_score(scores_with, has_urls=True, has_attachments=False)
+        score_no_url, _ = compute_score(scores_with, has_urls=False, has_attachments=False)
+        score_with_url, _ = compute_score(scores_with, has_urls=True, has_attachments=False)
         assert score_no_url == 0
         assert score_with_url > 0
 
     def test_attachment_dropped_when_no_attachments(self):
         """Without attachments the attachment weight is excluded."""
         scores = self._all_scores(attachment=1.0)
-        score_no_att = compute_score(scores, has_urls=False, has_attachments=False)
-        score_with_att = compute_score(scores, has_urls=False, has_attachments=True)
+        score_no_att, _ = compute_score(scores, has_urls=False, has_attachments=False)
+        score_with_att, _ = compute_score(scores, has_urls=False, has_attachments=True)
         assert score_no_att == 0
         assert score_with_att > 0
 
     def test_url_floor_triggers(self):
-        """Malicious URL score >= 0.8 should floor the result at 75."""
+        """Malicious URL score >= 0.8 should floor the result at 95."""
         scores = self._all_scores(url=0.9)
-        score = compute_score(scores, has_urls=True, has_attachments=False)
-        assert score >= 75
+        score, _ = compute_score(scores, has_urls=True, has_attachments=False)
+        assert score >= 95
 
     def test_attachment_floor_triggers(self):
-        """Risky attachment score >= 0.6 should floor the result at 65."""
+        """Risky attachment score >= 0.6 should floor the result at 80."""
         scores = self._all_scores(attachment=0.6)
-        score = compute_score(scores, has_urls=False, has_attachments=True)
-        assert score >= 65
+        score, _ = compute_score(scores, has_urls=False, has_attachments=True)
+        assert score >= 80
 
     def test_sender_floor_triggers(self):
-        """Clear spoofing score >= 0.9 should floor the result at 70."""
+        """Clear spoofing score >= 0.9 should floor the result at 85."""
         scores = self._all_scores(sender=0.9)
-        score = compute_score(scores, has_urls=False, has_attachments=False)
-        assert score >= 70
+        score, _ = compute_score(scores, has_urls=False, has_attachments=False)
+        assert score >= 85
 
     def test_floor_does_not_override_higher_weighted_score(self):
         """When weighted average exceeds the floor, the higher value wins."""
         scores = self._all_scores(header=1.0, sender=1.0, url=1.0, content=1.0, attachment=1.0)
-        score = compute_score(scores, has_urls=True, has_attachments=True)
+        score, _ = compute_score(scores, has_urls=True, has_attachments=True)
         assert score == 100
 
     def test_returns_int(self):
         """compute_score must return an int, not a float."""
-        score = compute_score(self._all_scores(header=0.5), has_urls=False, has_attachments=False)
+        score, _ = compute_score(self._all_scores(header=0.5), has_urls=False, has_attachments=False)
         assert isinstance(score, int)
 
     def test_score_bounded_0_to_100(self):
         """Score must never fall outside the 0–100 range."""
         scores = self._all_scores(header=1.0, sender=1.0, url=1.0, content=1.0, attachment=1.0)
-        score = compute_score(scores, has_urls=True, has_attachments=True)
+        score, _ = compute_score(scores, has_urls=True, has_attachments=True)
         assert 0 <= score <= 100
 
 
@@ -85,9 +86,17 @@ class TestGetBand:
         """Bottom of safe band."""
         assert get_band(0) == ("Safe", "green")
 
-    def test_score_30_is_safe(self):
+    def test_score_14_is_safe(self):
         """Top of safe band."""
-        assert get_band(30) == ("Safe", "green")
+        assert get_band(14) == ("Safe", "green")
+
+    def test_score_15_is_likely_safe(self):
+        """Bottom of likely safe band."""
+        assert get_band(15) == ("Likely Safe", "lime")
+
+    def test_score_30_is_likely_safe(self):
+        """Top of likely safe band."""
+        assert get_band(30) == ("Likely Safe", "lime")
 
     def test_score_31_is_suspicious(self):
         """Bottom of suspicious band."""
@@ -149,15 +158,15 @@ class TestGenerateBullets:
         bullets = generate_bullets({"malicious_urls": ["http://evil.com"]})
         assert any("Malicious URL" in b for b in bullets)
 
-    def test_keyword_count_below_threshold_no_bullet(self):
-        """5 or fewer phishing keywords should not produce a bullet."""
-        bullets = generate_bullets({"phishing_keywords": 5})
-        assert not any("phishing keyword" in b for b in bullets)
+    def test_high_keyword_density_false_no_bullet(self):
+        """high_keyword_density=False should not produce a keyword bullet."""
+        bullets = generate_bullets({"high_keyword_density": False})
+        assert not any("phishing keyword" in b.lower() for b in bullets)
 
-    def test_keyword_count_above_threshold_produces_bullet(self):
-        """More than 5 phishing keywords should fire the keyword bullet."""
-        bullets = generate_bullets({"phishing_keywords": 6})
-        assert any("phishing keyword" in b for b in bullets)
+    def test_high_keyword_density_true_produces_bullet(self):
+        """high_keyword_density=True should fire the keyword bullet."""
+        bullets = generate_bullets({"high_keyword_density": True})
+        assert any("phishing keyword" in b.lower() for b in bullets)
 
     def test_obfuscation_produces_bullet(self):
         """HTML obfuscation flag should produce a bullet."""
@@ -243,12 +252,12 @@ class TestAnalyze:
         assert result["score"]   == 0
 
     def test_malicious_url_floor_applied(self):
-        """High URL score should floor the final score at >= 75."""
+        """High URL score should floor the final score at >= 95."""
         url_signals = {"total_urls": 1, "malicious_urls": ["http://evil.com"]}
         patches = self._patch_all_analyzers(url=(0.9, url_signals))
         with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = analyze("From: x@y.com\n\nClick here")
-        assert result["score"] >= 75
+        assert result["score"] >= 95
 
     def test_bullets_generated_from_signals(self):
         """Fired signals should appear as bullets in the response."""

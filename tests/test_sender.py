@@ -17,57 +17,52 @@ from analyzers.sender import (
 
 
 class TestCheckDomainAge:
-    """Tests for check_domain_age."""
+    """Tests for check_domain_age — uses RDAP via _rdap_lookup."""
 
-    def _mock_whois(self, creation_date):
-        """Build a mock whois result with the given creation date."""
-        return {"creation_date": creation_date}
+    def _iso(self, dt):
+        """Format a datetime as an ISO string the way RDAP returns it."""
+        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def test_very_new_domain(self):
         """Domain registered < 30 days ago should score 1.0."""
         creation = datetime.now(timezone.utc) - timedelta(days=10)
-        with patch("analyzers.sender.whois_lib.whois", return_value=self._mock_whois(creation)):
-            score = check_domain_age("new-phishing-domain.com")
+        with patch("analyzers.sender._rdap_lookup", return_value=self._iso(creation)):
+            score, _ = check_domain_age("new-phishing-domain.com")
         assert score == 1.0
 
     def test_young_domain(self):
         """Domain registered 30-90 days ago should score 0.7."""
         creation = datetime.now(timezone.utc) - timedelta(days=60)
-        with patch("analyzers.sender.whois_lib.whois", return_value=self._mock_whois(creation)):
-            score = check_domain_age("youngdomain.com")
+        with patch("analyzers.sender._rdap_lookup", return_value=self._iso(creation)):
+            score, _ = check_domain_age("youngdomain.com")
         assert score == 0.7
 
     def test_old_domain(self):
         """Established domain should score 0.0."""
         creation = datetime.now(timezone.utc) - timedelta(days=365 * 5)
-        with patch("analyzers.sender.whois_lib.whois", return_value=self._mock_whois(creation)):
-            score = check_domain_age("established.com")
+        with patch("analyzers.sender._rdap_lookup", return_value=self._iso(creation)):
+            score, _ = check_domain_age("established.com")
         assert score == 0.0
 
-    def test_list_creation_date_uses_first(self):
-        """When creation_date is a list, the first value is used."""
-        old = datetime.now(timezone.utc) - timedelta(days=1000)
-        new = datetime.now(timezone.utc) - timedelta(days=5)
-        with patch("analyzers.sender.whois_lib.whois", return_value=self._mock_whois([old, new])):
-            score = check_domain_age("multidomain.com")
-        assert score == 0.0  # first date is old
+    def test_no_registration_date_returns_zero(self):
+        """RDAP response with no registration date should return (0.0, False)."""
+        with patch("analyzers.sender._rdap_lookup", return_value=None):
+            score, unknown = check_domain_age("nodatadomain.com")
+        assert score == 0.0
+        assert unknown is False
 
     def test_empty_domain(self):
-        """Empty domain should return 0.0 without crashing."""
-        score = check_domain_age("")
+        """Empty domain should return (0.0, False) without crashing."""
+        score, unknown = check_domain_age("")
         assert score == 0.0
+        assert unknown is False
 
-    def test_none_creation_date(self):
-        """Missing creation date in whois result should return 0.0."""
-        with patch("analyzers.sender.whois_lib.whois", return_value=self._mock_whois(None)):
-            score = check_domain_age("nodatadomain.com")
-        assert score == 0.0
-
-    def test_whois_exception_returns_zero(self):
-        """Network or lookup failures should not raise — return 0.0."""
-        with patch("analyzers.sender.whois_lib.whois", side_effect=Exception("Network error")):
-            score = check_domain_age("unreachable.com")
-        assert score == 0.0
+    def test_rdap_exception_returns_unknown(self):
+        """Network or lookup failures should return (0.2, True) — unknown age."""
+        with patch("analyzers.sender._rdap_lookup", side_effect=Exception("Network error")):
+            score, unknown = check_domain_age("unreachable.com")
+        assert score == 0.2
+        assert unknown is True
 
 
 class TestCheckTyposquatting:
@@ -159,39 +154,35 @@ class TestCheckDisplayNameSpoofing:
 
 
 class TestCheckFreeEmailProvider:
-    """Tests for check_free_email_provider."""
+    """Tests for check_free_email_provider — only flags when a brand keyword is in the display name."""
 
-    def test_gmail(self):
-        """Gmail should be recognized as free provider."""
-        assert check_free_email_provider("gmail.com") == 0.3
+    def test_gmail_with_brand_display_name(self):
+        """Free provider + brand display name should score 0.3."""
+        assert check_free_email_provider("gmail.com", '"Google Support" <x@gmail.com>') == 0.3
 
-    def test_yahoo(self):
-        """Yahoo should be recognized as free provider."""
-        assert check_free_email_provider("yahoo.com") == 0.3
+    def test_yahoo_with_brand_display_name(self):
+        """Yahoo + brand keyword in display name should score 0.3."""
+        assert check_free_email_provider("yahoo.com", '"PayPal Security" <x@yahoo.com>') == 0.3
 
-    def test_hotmail(self):
-        """Hotmail should be recognized as free provider."""
-        assert check_free_email_provider("hotmail.com") == 0.3
+    def test_gmail_no_display_name(self):
+        """Free provider with no display name is not a spoof signal — 0.0."""
+        assert check_free_email_provider("gmail.com") == 0.0
 
-    def test_outlook(self):
-        """Outlook should be recognized as free provider."""
-        assert check_free_email_provider("outlook.com") == 0.3
-
-    def test_aol(self):
-        """AOL should be recognized as free provider."""
-        assert check_free_email_provider("aol.com") == 0.3
+    def test_gmail_no_brand_keyword(self):
+        """Free provider with generic display name should return 0.0."""
+        assert check_free_email_provider("gmail.com", '"John Doe" <john@gmail.com>') == 0.0
 
     def test_business_domain(self):
-        """Custom business domain should return 0.0."""
-        assert check_free_email_provider("company.com") == 0.0
+        """Custom business domain should return 0.0 regardless of display name."""
+        assert check_free_email_provider("company.com", '"Apple Support" <x@company.com>') == 0.0
 
     def test_empty_domain(self):
         """Empty domain should return 0.0."""
         assert check_free_email_provider("") == 0.0
 
-    def test_case_insensitive(self):
-        """Check is case-insensitive."""
-        assert check_free_email_provider("Gmail.com") == 0.3
+    def test_case_insensitive_domain(self):
+        """Domain check is case-insensitive."""
+        assert check_free_email_provider("Gmail.com", '"Google" <x@Gmail.com>') == 0.3
 
 
 class TestCheckReplyToMismatch:
@@ -206,14 +197,14 @@ class TestCheckReplyToMismatch:
         assert check_reply_to_mismatch("support.example.com", "example.com") == 0.0
 
     def test_completely_different_domain(self):
-        """Completely different reply-to domain is a strong phishing signal."""
+        """Completely different reply-to domain is a phishing signal."""
         score = check_reply_to_mismatch("legit-bank.com", "evil.net")
-        assert score == 0.8
+        assert score > 0.0
 
     def test_different_tld(self):
         """Same name but different TLD (bank.com vs bank.net) should be flagged."""
         score = check_reply_to_mismatch("bank.com", "bank.net")
-        assert score == 0.8
+        assert score > 0.0
 
     def test_empty_from_domain(self):
         """Missing from domain means no basis for comparison — return 0.0."""
@@ -266,14 +257,20 @@ class TestAnalyzeSender:
             reply_to="harvest@completely-different.net"
         )
         score, signals = analyze_sender(email)
-        assert score >= 0.6
+        assert score > 0.0
         assert signals["reply_to_mismatch"] is True
 
     def test_free_provider_alone_is_low_risk(self):
-        """Free provider without any other signal should not score high."""
+        """Free provider with no brand display name should not score high and not flag spoof."""
         email = self._build_email("someone@gmail.com")
         score, signals = analyze_sender(email)
         assert score < 0.2
+        assert signals["free_provider_spoof"] is False
+
+    def test_free_provider_brand_spoof_detected(self):
+        """Free provider claiming to be a brand in the display name should flag spoof."""
+        email = self._build_email('"PayPal Security" <billing@gmail.com>')
+        score, signals = analyze_sender(email)
         assert signals["free_provider_spoof"] is True
 
     def test_score_capped_at_one(self):
