@@ -31,6 +31,7 @@ SIGNAL_FLOORS = [
     ("attachment", 0.6, 80),  # risky file type (.exe, .ps1 etc.) → likely malicious
     ("header",     0.6, 35),  # 2 auth failures → at least Suspicious
     ("header",     0.9, 60),  # 3 auth failures → Suspicious
+    ("sender",     0.4, 35),  # suspicious TLD or unverifiable domain → at least Suspicious
     ("sender",     0.7, 55),  # newly registered domain or free provider → at least 55
     ("sender",     0.9, 85),  # clear spoofing/typosquat → Likely Malicious
     ("content",    0.7, 55),  # high phishing content → at least 55
@@ -64,6 +65,7 @@ BULLET_RULES = [
     (lambda s: s.get("undisclosed_recipients"),           "⚠️", "Email sent to undisclosed recipients"),
     (lambda s: s.get("domain_age_unknown"),               "⚠️", "Sender domain age could not be verified — treat with caution"),
     (lambda s: s.get("domain_recent_breach"),             "⚠️", lambda s: s.get("breach_info") or "Sender domain had a recent data breach"),
+    (lambda s: s.get("suspicious_tld"),                   "⚠️", "Sender domain uses an extension commonly associated with phishing"),
     (lambda s: s.get("forwarded_inner_sender"),           "⚠️", "Suspicious sender detected inside a forwarded email"),
 ]
 

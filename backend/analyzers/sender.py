@@ -28,6 +28,11 @@ MAJOR_BRAND_KEYWORDS = {
 
 FREE_EMAIL_PROVIDERS = {"gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com"}
 
+SUSPICIOUS_TLDS = {
+    "site", "online", "xyz", "click", "top", "work", "link",
+    "live", "icu", "buzz", "gdn", "su", "bid", "pw",
+}
+
 def _levenshtein(a, b):
     """
     Calculate the Levenshtein distance between two strings.
@@ -194,6 +199,14 @@ def check_reply_to_mismatch(from_domain, reply_to_domain):
 
     return 0.5
 
+def check_suspicious_tld(domain):
+    """Flag domains using TLDs disproportionately associated with phishing."""
+    if not domain:
+        return 0.0
+    tld = domain.rsplit(".", 1)[-1].lower()
+    return 0.3 if tld in SUSPICIOUS_TLDS else 0.0
+
+
 def check_domain_breaches(domain):
     """
     Check if domain had a data breach in the last 3 years via HIBP free API.
@@ -220,8 +233,8 @@ def check_domain_breaches(domain):
             pretty_date = datetime.strptime(raw_date, "%Y-%m-%d").strftime("%B %d, %Y")
         except Exception:
             pretty_date = raw_date
-        breach_title = latest.get("Title") or latest.get("Name") or domain
-        return True, f"{breach_title} had a data breach on {pretty_date}."
+        breach_domain = latest.get("Domain") or domain
+        return True, f"{breach_domain} had a data breach on {pretty_date}."
     except Exception:
         return False, None
 
@@ -294,13 +307,14 @@ def analyze_sender(email, auth=None):
     free_email_score = check_free_email_provider(sender_domain, from_header)
     mismatch_score = check_reply_to_mismatch(sender_domain, reply_to_domain)
     undisclosed_score = check_undisclosed_recipients(to_header)
+    tld_score = check_suspicious_tld(sender_domain)
 
     high_signal = max(spoofing_score, typo_score, mismatch_score)
 
     if high_signal > 0:
-        sender_score = min(1.0, high_signal + age_score * 0.15 + free_email_score * 0.1 + undisclosed_score * 0.2)
+        sender_score = min(1.0, high_signal + age_score * 0.15 + free_email_score * 0.1 + undisclosed_score * 0.2 + tld_score * 0.1)
     else:
-        sender_score = min(1.0, age_score * 0.7 + free_email_score * 0.3 + undisclosed_score * 0.3)
+        sender_score = min(1.0, age_score * 0.7 + free_email_score * 0.3 + undisclosed_score * 0.3 + tld_score)
 
     return sender_score, {
         "display_name_spoof":      spoofing_score > 0,
@@ -314,4 +328,5 @@ def analyze_sender(email, auth=None):
         "domain_age_unknown":      domain_age_unknown,
         "domain_recent_breach":    domain_breached,
         "breach_info":             breach_info,
+        "suspicious_tld":          tld_score > 0,
     }

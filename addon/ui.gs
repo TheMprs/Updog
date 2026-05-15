@@ -162,11 +162,3 @@ function scoreBar(pct) {
   var empty  = 10 - filled;
   return "█".repeat(filled) + "░".repeat(empty);
 }
-
-function onBreachSafe() {
-  return CardService.newActionResponseBuilder()
-    .setNotification(
-      CardService.newNotification().setText("Good — your account is protected.")
-    )
-    .build();
-}
