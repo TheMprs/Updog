@@ -63,17 +63,18 @@ def detect_obfuscation(email_html):
                         obfuscation_count += 1
                         triggers.append("white_on_white_text")
 
-        # Detect font sizes smaller than 1px
-        font_size_pattern = r'font-size\s*:\s*([\d.]+)(px|em|rem)?'
-        for match in re.finditer(font_size_pattern, style, re.IGNORECASE):
-            value = float(match.group(1))
-            unit = (match.group(2) or 'px').lower()
-            if unit == 'px' and value < 1:
-                obfuscation_count += 1
-                triggers.append(f"tiny_font_{value}px")
-            elif unit in ('em', 'rem') and value < 0.067:
-                obfuscation_count += 1
-                triggers.append(f"tiny_font_{value}{unit}")
+        # Detect font sizes smaller than 1px — only flag if the tag has visible text
+        if tag.get_text(strip=True):
+            font_size_pattern = r'font-size\s*:\s*([\d.]+)(px|em|rem)?'
+            for match in re.finditer(font_size_pattern, style, re.IGNORECASE):
+                value = float(match.group(1))
+                unit = (match.group(2) or 'px').lower()
+                if unit == 'px' and value < 1:
+                    obfuscation_count += 1
+                    triggers.append(f"tiny_font_{value}px")
+                elif unit in ('em', 'rem') and value < 0.067:
+                    obfuscation_count += 1
+                    triggers.append(f"tiny_font_{value}{unit}")
 
     # Detect base64-encoded HTML data URI (hides content from text scanners)
     html_str = str(soup)

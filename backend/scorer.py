@@ -50,7 +50,7 @@ BULLET_RULES = [
 ]
 
 
-def compute_score(scores: dict, has_urls: bool, has_attachments: bool) -> int:
+def compute_score(scores: dict, has_urls: bool, has_attachments: bool) -> tuple:
     active_weights = {
         k: v for k, v in WEIGHTS.items()
         if not (k == "url" and not has_urls)
@@ -58,14 +58,35 @@ def compute_score(scores: dict, has_urls: bool, has_attachments: bool) -> int:
     }
     total_weight = sum(active_weights.values())
     weighted = sum(scores[k] * w for k, w in active_weights.items()) / total_weight
+    weighted_score = round(weighted * 100)
 
-    floor = max(
-        (min_score for key, threshold, min_score in SIGNAL_FLOORS
-         if key in active_weights and scores.get(key, 0) >= threshold),
-        default=0,
+    triggered_floors = [
+        (key, threshold, min_score)
+        for key, threshold, min_score in SIGNAL_FLOORS
+        if key in active_weights and scores.get(key, 0) >= threshold
+    ]
+    floor = max((min_score for _, _, min_score in triggered_floors), default=0)
+    final_score = round(min(100, max(weighted * 100, floor)))
+
+    contributions = {
+        k: round(scores[k] * (w / total_weight) * 100)
+        for k, w in active_weights.items()
+    }
+    floor_applied = floor > weighted_score
+    floor_reason = (
+        f"{triggered_floors[-1][0]} score {round(scores[triggered_floors[-1][0]] * 100)}% "
+        f">= {round(triggered_floors[-1][1] * 100)}% threshold → floor {floor}"
+        if floor_applied and triggered_floors else None
     )
 
-    return round(min(100, max(weighted * 100, floor)))
+    calculation = {
+        "contributions": contributions,
+        "weighted_score": weighted_score,
+        "floor_applied": floor_applied,
+        "floor_reason": floor_reason,
+        "final_score": final_score,
+    }
+    return final_score, calculation
 
 
 def get_band(score: int) -> tuple:
@@ -88,7 +109,7 @@ def analyze(email: str) -> dict:
     attachment_score, attachment_signals = analyze_attachments(email)
     content_score,    content_signals    = analyze_content(email, attachment_signals.get("filenames", []))
     url_score,        url_signals        = analyze_urls(email)
-    sender_score,     sender_signals     = analyze_sender(email)
+    sender_score,     sender_signals     = analyze_sender(email, auth=header_signals)
 
     has_urls        = url_signals.get("total_urls", 0) > 0
     has_attachments = attachment_signals.get("total_attachments", 0) > 0
@@ -109,16 +130,17 @@ def analyze(email: str) -> dict:
         **attachment_signals,
     }
 
-    score          = compute_score(scores, has_urls, has_attachments)
-    verdict, color = get_band(score)
-    bullets        = generate_bullets(signals)
+    score, calculation = compute_score(scores, has_urls, has_attachments)
+    verdict, color     = get_band(score)
+    bullets            = generate_bullets(signals)
 
     return {
-        "score":   score,
-        "verdict": verdict,
-        "color":   color,
-        "bullets": bullets,
-        "breakdown": scores,
+        "score":       score,
+        "verdict":     verdict,
+        "color":       color,
+        "bullets":     bullets,
+        "breakdown":   scores,
+        "calculation": calculation,
         "signals": {
             "header":     header_signals,
             "sender":     sender_signals,

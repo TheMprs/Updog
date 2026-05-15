@@ -4,8 +4,9 @@ function onGmailMessage(e) {
   try {
     var result = analyzeEmail(messageId);
 
-    var b = result.breakdown || {};
-    var s = result.signals  || {};
+    var b = result.breakdown    || {};
+    var s = result.signals      || {};
+    var c = result.calculation  || {};
 
     Logger.log("═══════════════════════════════════════");
     Logger.log("  UPDOG ANALYSIS REPORT");
@@ -31,6 +32,18 @@ function onGmailMessage(e) {
     logSignals(s.content);
     Logger.log("  ATTACHMENT SIGNALS");
     logSignals(s.attachment);
+    Logger.log("───────────────────────────────────────");
+    Logger.log("  SCORE CALCULATION");
+    var contrib = c.contributions || {};
+    Object.keys(contrib).forEach(function(k) {
+      Logger.log("    " + k + ": +" + contrib[k] + " pts");
+    });
+    Logger.log("    ──────────────────────────");
+    Logger.log("    weighted total : " + c.weighted_score + " / 100");
+    if (c.floor_applied) {
+      Logger.log("    floor applied  : " + c.floor_reason);
+    }
+    Logger.log("    final score    : " + c.final_score + " / 100");
     Logger.log("───────────────────────────────────────");
     Logger.log("  FINDINGS");
     (result.bullets || []).forEach(function(b) { Logger.log("  " + b); });

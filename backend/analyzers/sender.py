@@ -200,12 +200,14 @@ def check_undisclosed_recipients(to_header):
     return 0.4 if "undisclosed-recipients" in to_header.lower() else 0.0
 
 
-def analyze_sender(email):
+def analyze_sender(email, auth=None):
     """
     Analyze sender/domain for phishing indicators.
 
     Args:
         email: Full email string (headers + body)
+        auth: Optional dict of header signals (spf, dkim, dmarc) from analyze_headers.
+              Used to lower subdomain-spoof confidence when auth passes.
 
     Returns:
         sender_score: 0.0 (safe) to 1.0 (malicious)
@@ -234,6 +236,15 @@ def analyze_sender(email):
 
     age_score = check_domain_age(sender_domain)
     typo_score, typo_target = check_typosquatting(sender_domain)
+
+    # Subdomain spoofing (brand.thirdparty.com) + passing auth = likely legit sending service
+    if typo_score > 0 and typo_target and auth:
+        sender_labels = sender_domain.lower().split('.')
+        typo_base = typo_target.split('.')[0].lower()
+        auth_passed = auth.get("spf") == "pass" and auth.get("dkim") == "pass"
+        if typo_base in sender_labels and auth_passed:
+            typo_score = 0.3
+
     spoofing_score = check_display_name_spoofing(from_header, sender_domain)
     free_email_score = check_free_email_provider(sender_domain, from_header)
     mismatch_score = check_reply_to_mismatch(sender_domain, reply_to_domain)
