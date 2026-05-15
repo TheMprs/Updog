@@ -194,6 +194,7 @@ def analyze_content(email, attachment_filenames=None):
     return content_score, {
         "phishing_keywords":    phishing_count,
         "detected_language":    detected_lang,
+        "high_keyword_density": keyword_score >= 0.3,
         "obfuscation_detected": obfuscation_score >= 0.5,
         "obfuscation_triggers": ", ".join(obfuscation_triggers) if obfuscation_triggers else None,
         "caps_abuse":           caps_score > 0,

@@ -238,14 +238,22 @@ def analyze_sender(email, auth=None):
     typo_score, typo_target = check_typosquatting(sender_domain)
 
     # Subdomain spoofing (brand.thirdparty.com) + passing auth = likely legit sending service
+    typosquat_auth_mitigated = False
     if typo_score > 0 and typo_target and auth:
         sender_labels = sender_domain.lower().split('.')
         typo_base = typo_target.split('.')[0].lower()
         auth_passed = auth.get("spf") == "pass" and auth.get("dkim") == "pass"
         if typo_base in sender_labels and auth_passed:
             typo_score = 0.3
+            typosquat_auth_mitigated = True
 
     spoofing_score = check_display_name_spoofing(from_header, sender_domain)
+
+    # Display name spoof + passing auth = likely legitimate sending service
+    if spoofing_score > 0 and auth:
+        auth_passed = auth.get("spf") == "pass" and auth.get("dkim") == "pass"
+        if auth_passed:
+            spoofing_score = 0.5
     free_email_score = check_free_email_provider(sender_domain, from_header)
     mismatch_score = check_reply_to_mismatch(sender_domain, reply_to_domain)
     undisclosed_score = check_undisclosed_recipients(to_header)
@@ -258,11 +266,12 @@ def analyze_sender(email, auth=None):
         sender_score = min(1.0, age_score * 0.7 + free_email_score * 0.3 + undisclosed_score * 0.3)
 
     return sender_score, {
-        "display_name_spoof":    spoofing_score > 0,
-        "reply_to_mismatch":     mismatch_score > 0,
-        "free_provider_spoof":   free_email_score > 0,
-        "typosquat_detected":    typo_score > 0,
-        "typosquat_target":      typo_target,
-        "from_domain":           sender_domain,
-        "undisclosed_recipients": undisclosed_score > 0,
+        "display_name_spoof":      spoofing_score > 0,
+        "reply_to_mismatch":       mismatch_score > 0,
+        "free_provider_spoof":     free_email_score > 0,
+        "typosquat_detected":      typo_score > 0,
+        "typosquat_auth_mitigated": typosquat_auth_mitigated,
+        "typosquat_target":        typo_target,
+        "from_domain":             sender_domain,
+        "undisclosed_recipients":  undisclosed_score > 0,
     }
