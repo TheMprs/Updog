@@ -63,8 +63,10 @@ def detect_obfuscation(email_html):
                         obfuscation_count += 1
                         triggers.append("white_on_white_text")
 
-        # Detect font sizes smaller than 1px — only flag if the tag has visible text
-        if tag.get_text(strip=True):
+        # Detect font sizes smaller than 1px — only flag if the tag has direct text
+        # (excludes layout containers whose 0px applies to spacing, not hidden text)
+        direct_text = "".join(s for s in tag.find_all(string=True, recursive=False) if s.strip() and s.strip() != "\xa0")
+        if direct_text:
             font_size_pattern = r'font-size\s*:\s*([\d.]+)(px|em|rem)?'
             for match in re.finditer(font_size_pattern, style, re.IGNORECASE):
                 value = float(match.group(1))
@@ -76,11 +78,27 @@ def detect_obfuscation(email_html):
                     obfuscation_count += 1
                     triggers.append(f"tiny_font_{value}{unit}")
 
-    # Detect base64-encoded HTML data URI (hides content from text scanners)
     html_str = str(soup)
+
+    # Detect base64-encoded HTML data URI (hides content from text scanners)
     if re.search(r'data:text/html;base64,', html_str):
         obfuscation_count += 2
         triggers.append("base64_html_data_uri")
+
+    # Detect executable script tags — anything that isn't JSON-LD structured data
+    for script in soup.find_all("script"):
+        script_type = (script.get("type") or "").strip().lower()
+        if script_type != "application/ld+json":
+            obfuscation_count += 2
+            triggers.append(f"executable_script_type:{script_type or 'none'}")
+            break
+
+    # Detect javascript: hrefs — always malicious intent in email
+    for tag in soup.find_all(href=True):
+        if tag["href"].strip().lower().startswith("javascript:"):
+            obfuscation_count += 2
+            triggers.append("javascript_href")
+            break
 
     obfuscation_score = min(1.0, obfuscation_count * 0.25)
     return obfuscation_score, triggers
