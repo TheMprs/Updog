@@ -63,6 +63,48 @@ function buildResultCard(result) {
     card.addSection(clearSection);
   }
 
+  // ── Breach notification section ──
+  var senderSignals = (result.signals && result.signals.sender) || {};
+  if (senderSignals.domain_recent_breach) {
+    var breachSection = CardService.newCardSection()
+      .setHeader("⚠️ Data Breach Detected");
+
+    breachSection.addWidget(
+      CardService.newDecoratedText()
+        .setText(senderSignals.breach_info || "This domain had a recent data breach.")
+        .setWrapText(true)
+    );
+
+    breachSection.addWidget(
+      CardService.newDecoratedText()
+        .setText("Have you changed your password since this breach?")
+        .setWrapText(true)
+    );
+
+    var buttonSet = CardService.newButtonSet();
+
+    buttonSet.addButton(
+      CardService.newTextButton()
+        .setText("Yes, I'm safe ✓")
+        .setOnClickAction(
+          CardService.newAction().setFunctionName("onBreachSafe")
+        )
+    );
+
+    buttonSet.addButton(
+      CardService.newTextButton()
+        .setText("No — take me to HIBP")
+        .setOpenLink(
+          CardService.newOpenLink()
+            .setUrl("https://haveibeenpwned.com")
+            .setOpenAs(CardService.OpenAs.FULL_SIZE)
+        )
+    );
+
+    breachSection.addWidget(buttonSet);
+    card.addSection(breachSection);
+  }
+
   // ── Breakdown section (collapsible) ──
   if (result.breakdown) {
     var breakdownSection = CardService.newCardSection()
@@ -117,4 +159,12 @@ function scoreBar(pct) {
   var filled = Math.round(pct / 10);
   var empty  = 10 - filled;
   return "█".repeat(filled) + "░".repeat(empty);
+}
+
+function onBreachSafe() {
+  return CardService.newActionResponseBuilder()
+    .setNotification(
+      CardService.newNotification().setText("Great — you're all set!")
+    )
+    .build();
 }

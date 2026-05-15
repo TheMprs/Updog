@@ -51,6 +51,7 @@ BULLET_RULES = [
     (lambda s: s.get("large_money_amount"),               "❌", "Large monetary amounts mentioned"),
     (lambda s: s.get("undisclosed_recipients"),           "⚠️", "Email sent to undisclosed recipients"),
     (lambda s: s.get("domain_age_unknown"),               "⚠️", "Sender domain age could not be verified — treat with caution"),
+    (lambda s: s.get("domain_recent_breach"),             "⚠️", lambda s: s.get("breach_info") or "Sender domain had a recent data breach"),
 ]
 
 
@@ -102,7 +103,7 @@ def get_band(score: int) -> tuple:
 
 def generate_bullets(signals: dict) -> list:
     return [
-        f"{icon} {text}"
+        f"{icon} {text(signals) if callable(text) else text}"
         for condition, icon, text in BULLET_RULES
         if condition(signals)
     ]

@@ -273,6 +273,7 @@ def analyze_sender(email, auth=None):
 
     age_score, domain_age_unknown = check_domain_age(sender_domain)
     typo_score, typo_target = check_typosquatting(sender_domain)
+    domain_breached, breach_info = check_domain_breaches(sender_domain)
 
     # Subdomain spoofing (brand.thirdparty.com) + passing auth = likely legit sending service
     typosquat_auth_mitigated = False
@@ -312,4 +313,6 @@ def analyze_sender(email, auth=None):
         "from_domain":             sender_domain,
         "undisclosed_recipients":  undisclosed_score > 0,
         "domain_age_unknown":      domain_age_unknown,
+        "domain_recent_breach":    domain_breached,
+        "breach_info":             breach_info,
     }
