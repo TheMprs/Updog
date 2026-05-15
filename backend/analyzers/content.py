@@ -34,25 +34,24 @@ SAFE_LANGUAGES = {"en", "he"}  # English and Hebrew
 def detect_obfuscation(email_html):
     """
     Detect HTML obfuscation techniques used to bypass spam filters.
-    Returns obfuscation_score between 0.0 (none) and 1.0 (highly obfuscated).
+    Returns (score, triggers) where score is 0.0–1.0 and triggers is a list of fired check names.
     """
     if not email_html:
-        return 0.0
+        return 0.0, []
 
     try:
         soup = BeautifulSoup(email_html, 'html.parser')
     except Exception:
-        return 0.0
+        return 0.0, []
 
-    obfuscation_score = 0.0
     obfuscation_count = 0
+    triggers = []
 
     # Detect invisible text (white text, 0px fonts, etc.)
     for tag in soup.find_all(style=True):
         style = tag.get('style', '').lower()
-        clean_style = style.replace(" ", "")
 
-        # White text on white/transparent background — only match when text color itself is white
+        # White text on white/transparent background
         text_color_match = re.search(r'(?<![a-z-])color\s*:\s*([^;]+)', style)
         if text_color_match:
             text_color = text_color_match.group(1).strip()
@@ -62,32 +61,28 @@ def detect_obfuscation(email_html):
                     bg_value = bg_match.group(1).lower()
                     if any(x in bg_value for x in ['white', '#fff', '#ffffff', 'transparent']):
                         obfuscation_count += 1
-                    
+                        triggers.append("white_on_white_text")
+
         # Detect font sizes smaller than 1px
         font_size_pattern = r'font-size\s*:\s*([\d.]+)(px|em|rem)?'
-        font_matches = re.finditer(font_size_pattern, style, re.IGNORECASE)
-        for match in font_matches:
+        for match in re.finditer(font_size_pattern, style, re.IGNORECASE):
             value = float(match.group(1))
             unit = (match.group(2) or 'px').lower()
-
-            # Check if font is smaller than 1px (including 0)
             if unit == 'px' and value < 1:
                 obfuscation_count += 1
-            elif unit == 'em' and value < 0.067:  # 0.067em ≈ 1px (15px base)
+                triggers.append(f"tiny_font_{value}px")
+            elif unit in ('em', 'rem') and value < 0.067:
                 obfuscation_count += 1
-            elif unit == 'rem' and value < 0.067:
-                obfuscation_count += 1
+                triggers.append(f"tiny_font_{value}{unit}")
 
-    # Detect base64 encoded content (often used to hide malicious content)
+    # Detect base64-encoded HTML data URI (hides content from text scanners)
     html_str = str(soup)
-    base64_pattern = r'data:text/html;base64,'
-    if re.search(base64_pattern, html_str):
-        obfuscation_count += 2  # Higher weight for base64 encoding
+    if re.search(r'data:text/html;base64,', html_str):
+        obfuscation_count += 2
+        triggers.append("base64_html_data_uri")
 
-    # Convert count to score (each technique adds 0.25, cap at 1.0)
     obfuscation_score = min(1.0, obfuscation_count * 0.25)
-
-    return obfuscation_score
+    return obfuscation_score, triggers
 
 def detect_language(text):
     """
@@ -186,8 +181,9 @@ def analyze_content(email, attachment_filenames=None):
 
     # Detect HTML obfuscation (if HTML is provided)
     obfuscation_score = 0.0
+    obfuscation_triggers = []
     if email_html:
-        obfuscation_score = detect_obfuscation(email_html)
+        obfuscation_score, obfuscation_triggers = detect_obfuscation(email_html)
 
     caps_score  = detect_caps_abuse(combined_text)
     money_score = detect_large_money_amounts(combined_text)
@@ -195,9 +191,10 @@ def analyze_content(email, attachment_filenames=None):
     content_score = min(1.0, keyword_score + language_penalty + effective_obfuscation + caps_score + money_score)
 
     return content_score, {
-        "phishing_keywords":   phishing_count,
-        "detected_language":   detected_lang,
+        "phishing_keywords":    phishing_count,
+        "detected_language":    detected_lang,
         "obfuscation_detected": obfuscation_score >= 0.5,
-        "caps_abuse":          caps_score > 0,
-        "large_money_amount":  money_score > 0,
+        "obfuscation_triggers": ", ".join(obfuscation_triggers) if obfuscation_triggers else None,
+        "caps_abuse":           caps_score > 0,
+        "large_money_amount":   money_score > 0,
     }
