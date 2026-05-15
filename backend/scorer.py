@@ -1,8 +1,20 @@
+import re
+
 from analyzers.header import analyze_headers
 from analyzers.content import analyze_content
 from analyzers.url import analyze_urls
 from analyzers.attachment import analyze_attachments
 from analyzers.sender import analyze_sender
+
+_FWD_FROM_RE = re.compile(
+    r'(?:---------- Forwarded message ---------|-----Original Message-----)[ \t]*\r?\n'
+    r'From:[ \t]*(.+)',
+    re.IGNORECASE
+)
+
+def _extract_inner_from(email_str: str) -> str:
+    m = _FWD_FROM_RE.search(email_str)
+    return m.group(1).strip() if m else ""
 
 WEIGHTS = {
     "url":        0.30, # url analysis comes from google, strongest signal
@@ -52,6 +64,7 @@ BULLET_RULES = [
     (lambda s: s.get("undisclosed_recipients"),           "⚠️", "Email sent to undisclosed recipients"),
     (lambda s: s.get("domain_age_unknown"),               "⚠️", "Sender domain age could not be verified — treat with caution"),
     (lambda s: s.get("domain_recent_breach"),             "⚠️", lambda s: s.get("breach_info") or "Sender domain had a recent data breach"),
+    (lambda s: s.get("forwarded_inner_sender"),           "⚠️", "Suspicious sender detected inside a forwarded email"),
 ]
 
 
@@ -115,6 +128,17 @@ def analyze(email: str) -> dict:
     content_score,    content_signals    = analyze_content(email, attachment_signals.get("filenames", []))
     url_score,        url_signals        = analyze_urls(email)
     sender_score,     sender_signals     = analyze_sender(email, auth=header_signals)
+
+    # For forwarded emails, also check the inner sender domain
+    inner_from = _extract_inner_from(email)
+    if inner_from:
+        try:
+            inner_score, inner_signals = analyze_sender(f"From: {inner_from}\n\n", auth=None)
+            if inner_score > sender_score:
+                sender_score = inner_score
+                sender_signals = {**inner_signals, "forwarded_inner_sender": True}
+        except Exception:
+            pass
 
     has_urls        = url_signals.get("total_urls", 0) > 0
     has_attachments = attachment_signals.get("total_attachments", 0) > 0

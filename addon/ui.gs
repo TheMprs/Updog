@@ -67,17 +67,17 @@ function buildResultCard(result) {
   var senderSignals = (result.signals && result.signals.sender) || {};
   if (senderSignals.domain_recent_breach) {
     var breachSection = CardService.newCardSection()
-      .setHeader("⚠️ Data Breach Detected");
+      .setHeader("⚠️ Known Data Breach");
 
     breachSection.addWidget(
       CardService.newDecoratedText()
-        .setText(senderSignals.breach_info || "This domain had a recent data breach.")
+        .setText(senderSignals.breach_info || "The sender's domain was involved in a known data breach.")
         .setWrapText(true)
     );
 
     breachSection.addWidget(
       CardService.newDecoratedText()
-        .setText("Have you changed your password since this breach?")
+        .setText("Have you changed your password for this service since then?")
         .setWrapText(true)
     );
 
@@ -85,18 +85,24 @@ function buildResultCard(result) {
 
     buttonSet.addButton(
       CardService.newTextButton()
-        .setText("Yes, I'm safe ✓")
+        .setText("Yes, I changed my password")
         .setOnClickAction(
           CardService.newAction().setFunctionName("onBreachSafe")
         )
     );
 
+    var userEmail = "";
+    try { userEmail = Session.getActiveUser().getEmail(); } catch (e) {}
+    var hibpUrl = userEmail
+      ? "https://haveibeenpwned.com/account/" + encodeURIComponent(userEmail)
+      : "https://haveibeenpwned.com";
+
     buttonSet.addButton(
       CardService.newTextButton()
-        .setText("No — take me to HIBP")
+        .setText("No — check if I was exposed")
         .setOpenLink(
           CardService.newOpenLink()
-            .setUrl("https://haveibeenpwned.com")
+            .setUrl(hibpUrl)
             .setOpenAs(CardService.OpenAs.FULL_SIZE)
         )
     );
@@ -128,6 +134,15 @@ function buildResultCard(result) {
 
     card.addSection(breakdownSection);
   }
+
+  // ── Disclaimer section ──
+  var disclaimerSection = CardService.newCardSection();
+  disclaimerSection.addWidget(
+    CardService.newDecoratedText()
+      .setText("This score is an estimate and not a guarantee. When in doubt, avoid clicking links or downloading attachments — especially from senders you don't recognize.")
+      .setWrapText(true)
+  );
+  card.addSection(disclaimerSection);
 
   return card.build();
 }
@@ -164,7 +179,7 @@ function scoreBar(pct) {
 function onBreachSafe() {
   return CardService.newActionResponseBuilder()
     .setNotification(
-      CardService.newNotification().setText("Great — you're all set!")
+      CardService.newNotification().setText("Good — your account is protected.")
     )
     .build();
 }

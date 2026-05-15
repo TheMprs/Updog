@@ -1,12 +1,9 @@
 import re
-import os
-import sys
 import concurrent.futures
 from datetime import datetime, timezone
 from .utils import parse_email
 
 import requests
-import whois as whois_lib
 
 # tests conducted on sender.py:
 # 1. check domain age 
@@ -61,14 +58,13 @@ def _extract_domain(email_addr):
     parts = email_addr.strip().split('@')
     return parts[-1].lower() if len(parts) == 2 else ""
 
-def _whois_lookup(domain):
-    """Run WHOIS lookup with stdout/stderr suppressed."""
-    with open(os.devnull, 'w') as devnull:
-        sys.stdout, sys.stderr = devnull, devnull
-        try:
-            return whois_lib.whois(domain)
-        finally:
-            sys.stdout, sys.stderr = sys.__stdout__, sys.__stderr__
+def _rdap_lookup(domain):
+    resp = requests.get(f"https://rdap.org/domain/{domain}", timeout=3)
+    resp.raise_for_status()
+    for event in resp.json().get("events", []):
+        if event.get("eventAction") == "registration":
+            return event.get("eventDate")
+    return None
 
 def check_domain_age(domain):
     """
@@ -80,14 +76,10 @@ def check_domain_age(domain):
     if not domain:
         return 0.0, False
     try:
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(_whois_lookup, domain)
-            info = future.result(timeout=3)
-        creation_date = info.get("creation_date")
-        if isinstance(creation_date, list):
-            creation_date = creation_date[0]
-        if creation_date is None:
+        date_str = _rdap_lookup(domain)
+        if date_str is None:
             return 0.0, False
+        creation_date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
         if creation_date.tzinfo is None:
             creation_date = creation_date.replace(tzinfo=timezone.utc)
         age_days = (datetime.now(timezone.utc) - creation_date).days
@@ -96,8 +88,6 @@ def check_domain_age(domain):
         if age_days < 90:
             return 0.7, False
         return 0.0, False
-    except KeyboardInterrupt:
-        raise
     except Exception:
         return 0.2, True
 
@@ -225,7 +215,13 @@ def check_domain_breaches(domain):
         if not recent:
             return False, None
         latest = max(recent, key=lambda b: b["BreachDate"])
-        return True, f"{domain} had a data breach on {latest['BreachDate']} ({latest.get('Name', domain)})"
+        raw_date = latest["BreachDate"]
+        try:
+            pretty_date = datetime.strptime(raw_date, "%Y-%m-%d").strftime("%B %d, %Y")
+        except Exception:
+            pretty_date = raw_date
+        breach_name = latest.get("Name") or domain
+        return True, f"{breach_name} had a data breach on {pretty_date} — your credentials from this service may have been exposed."
     except Exception:
         return False, None
 
@@ -271,9 +267,12 @@ def analyze_sender(email, auth=None):
     sender_domain = _extract_domain(from_header)
     reply_to_domain = _extract_domain(reply_to_header)
 
-    age_score, domain_age_unknown = check_domain_age(sender_domain)
     typo_score, typo_target = check_typosquatting(sender_domain)
-    domain_breached, breach_info = check_domain_breaches(sender_domain)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        age_fut    = executor.submit(check_domain_age, sender_domain)
+        breach_fut = executor.submit(check_domain_breaches, sender_domain)
+        age_score, domain_age_unknown = age_fut.result(timeout=4)
+        domain_breached, breach_info  = breach_fut.result(timeout=5)
 
     # Subdomain spoofing (brand.thirdparty.com) + passing auth = likely legit sending service
     typosquat_auth_mitigated = False
