@@ -6,5 +6,4 @@ beautifulsoup4
 langdetect
 py7zr
 rarfile
-python-whois
 pydantic

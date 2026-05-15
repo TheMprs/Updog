@@ -81,7 +81,7 @@ def compute_score(scores: dict, has_urls: bool, has_attachments: bool) -> tuple:
     triggered_floors = [
         (key, threshold, min_score)
         for key, threshold, min_score in SIGNAL_FLOORS
-        if key in active_weights and scores.get(key, 0) >= threshold
+        if key in active_weights and round(scores.get(key, 0), 10) >= threshold
     ]
     floor = max((min_score for _, _, min_score in triggered_floors), default=0)
     final_score = round(min(100, max(weighted * 100, floor)))

@@ -220,8 +220,8 @@ def check_domain_breaches(domain):
             pretty_date = datetime.strptime(raw_date, "%Y-%m-%d").strftime("%B %d, %Y")
         except Exception:
             pretty_date = raw_date
-        breach_name = latest.get("Name") or domain
-        return True, f"{breach_name} had a data breach on {pretty_date} — your credentials from this service may have been exposed."
+        breach_title = latest.get("Title") or latest.get("Name") or domain
+        return True, f"{breach_title} had a data breach on {pretty_date}."
     except Exception:
         return False, None
 

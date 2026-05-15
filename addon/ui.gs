@@ -77,18 +77,8 @@ function buildResultCard(result) {
 
     breachSection.addWidget(
       CardService.newDecoratedText()
-        .setText("Have you changed your password for this service since then?")
+        .setText("If you have an account with this service, consider changing your password if you haven't since the breach.")
         .setWrapText(true)
-    );
-
-    var buttonSet = CardService.newButtonSet();
-
-    buttonSet.addButton(
-      CardService.newTextButton()
-        .setText("Yes, I changed my password")
-        .setOnClickAction(
-          CardService.newAction().setFunctionName("onBreachSafe")
-        )
     );
 
     var userEmail = "";
@@ -97,17 +87,15 @@ function buildResultCard(result) {
       ? "https://haveibeenpwned.com/account/" + encodeURIComponent(userEmail)
       : "https://haveibeenpwned.com";
 
-    buttonSet.addButton(
+    breachSection.addWidget(
       CardService.newTextButton()
-        .setText("No — check if I was exposed")
+        .setText("Check if I was exposed")
         .setOpenLink(
           CardService.newOpenLink()
             .setUrl(hibpUrl)
             .setOpenAs(CardService.OpenAs.FULL_SIZE)
         )
     );
-
-    breachSection.addWidget(buttonSet);
     card.addSection(breachSection);
   }
 
@@ -138,9 +126,8 @@ function buildResultCard(result) {
   // ── Disclaimer section ──
   var disclaimerSection = CardService.newCardSection();
   disclaimerSection.addWidget(
-    CardService.newDecoratedText()
-      .setText("This score is an estimate and not a guarantee. When in doubt, avoid clicking links or downloading attachments — especially from senders you don't recognize.")
-      .setWrapText(true)
+    CardService.newTextParagraph()
+      .setText("<font color=\"#9E9E9E\">ⓘ This score is an estimate and not a guarantee. When in doubt, avoid clicking links or downloading attachments — especially from senders you don't recognize.</font>")
   );
   card.addSection(disclaimerSection);
 
