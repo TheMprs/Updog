@@ -1,6 +1,7 @@
 import re
 import os
 import sys
+import concurrent.futures
 from datetime import datetime, timezone
 from .utils import parse_email
 
@@ -59,36 +60,45 @@ def _extract_domain(email_addr):
     parts = email_addr.strip().split('@')
     return parts[-1].lower() if len(parts) == 2 else ""
 
+def _whois_lookup(domain):
+    """Run WHOIS lookup with stdout/stderr suppressed."""
+    with open(os.devnull, 'w') as devnull:
+        sys.stdout, sys.stderr = devnull, devnull
+        try:
+            return whois_lib.whois(domain)
+        finally:
+            sys.stdout, sys.stderr = sys.__stdout__, sys.__stderr__
+
 def check_domain_age(domain):
     """
     Check if domain was registered recently (< 30-90 days).
-    Returns age_score: 0.0 (old/safe) to 1.0 (newly registered/suspicious)
+    Returns (age_score, is_unknown):
+      age_score 0.0 (old/safe) to 1.0 (newly registered/suspicious)
+      is_unknown True if lookup timed out or failed
     """
     if not domain:
-        return 0.0
+        return 0.0, False
     try:
-        # suppress whois library noise (it prints socket errors before throwing)
-        with open(os.devnull, 'w') as devnull:
-            sys.stdout, sys.stderr = devnull, devnull
-            try:
-                info = whois_lib.whois(domain)
-            finally:
-                sys.stdout, sys.stderr = sys.__stdout__, sys.__stderr__
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_whois_lookup, domain)
+            info = future.result(timeout=3)
         creation_date = info.get("creation_date")
         if isinstance(creation_date, list):
             creation_date = creation_date[0]
         if creation_date is None:
-            return 0.0
+            return 0.0, False
         if creation_date.tzinfo is None:
             creation_date = creation_date.replace(tzinfo=timezone.utc)
         age_days = (datetime.now(timezone.utc) - creation_date).days
         if age_days < 30:
-            return 1.0
+            return 1.0, False
         if age_days < 90:
-            return 0.7
-        return 0.0
+            return 0.7, False
+        return 0.0, False
+    except concurrent.futures.TimeoutError:
+        return 0.2, True
     except Exception:
-        return 0.0
+        return 0.2, True
 
 def check_typosquatting(sender_domain):
     """
@@ -234,7 +244,7 @@ def analyze_sender(email, auth=None):
     sender_domain = _extract_domain(from_header)
     reply_to_domain = _extract_domain(reply_to_header)
 
-    age_score = check_domain_age(sender_domain)
+    age_score, domain_age_unknown = check_domain_age(sender_domain)
     typo_score, typo_target = check_typosquatting(sender_domain)
 
     # Subdomain spoofing (brand.thirdparty.com) + passing auth = likely legit sending service
@@ -274,4 +284,5 @@ def analyze_sender(email, auth=None):
         "typosquat_target":        typo_target,
         "from_domain":             sender_domain,
         "undisclosed_recipients":  undisclosed_score > 0,
+        "domain_age_unknown":      domain_age_unknown,
     }

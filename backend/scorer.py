@@ -48,6 +48,7 @@ BULLET_RULES = [
     (lambda s: s.get("caps_abuse"),                       "⚠️", "Excessive use of capitals detected"),
     (lambda s: s.get("large_money_amount"),               "❌", "Large monetary amounts mentioned"),
     (lambda s: s.get("undisclosed_recipients"),           "⚠️", "Email sent to undisclosed recipients"),
+    (lambda s: s.get("domain_age_unknown"),               "⚠️", "Sender domain age could not be verified — treat with caution"),
 ]
 
 

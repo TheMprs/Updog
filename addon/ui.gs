@@ -25,7 +25,7 @@ function buildResultCard(result) {
       CardService.newCardHeader()
         .setTitle("UpDog")
         .setSubtitle("Phishing & Malware Scanner")
-        .setImageUrl("https://drive.google.com/uc?export=view&id=1h-YXXWAwDGxjDY0v_80xVclFUKbjgHFd")
+        .setImageUrl("https://raw.githubusercontent.com/TheMprs/Updog/main/addon/logo.png")
     );
 
   // ── Verdict section ──
@@ -41,7 +41,7 @@ function buildResultCard(result) {
   card.addSection(verdictSection);
 
   // ── Findings section ──
-  if (bullets.length > 0) {
+  if (score >= 31 && bullets.length > 0) {
     var findingsSection = CardService.newCardSection()
       .setHeader("Findings");
 
@@ -98,7 +98,7 @@ function buildHomepageCard() {
       CardService.newCardHeader()
         .setTitle("UpDog")
         .setSubtitle("Phishing & Malware Scanner")
-        .setImageUrl("https://drive.google.com/uc?export=view&id=1h-YXXWAwDGxjDY0v_80xVclFUKbjgHFd")
+        .setImageUrl("https://raw.githubusercontent.com/TheMprs/Updog/main/addon/logo.png")
     )
     .addSection(
       CardService.newCardSection().addWidget(
@@ -118,7 +118,7 @@ function buildErrorCard(message) {
       CardService.newCardHeader()
         .setTitle("UpDog")
         .setSubtitle("Analysis failed")
-        .setImageUrl("https://drive.google.com/uc?export=view&id=1h-YXXWAwDGxjDY0v_80xVclFUKbjgHFd")
+        .setImageUrl("https://raw.githubusercontent.com/TheMprs/Updog/main/addon/logo.png")
     )
     .addSection(
       CardService.newCardSection().addWidget(
