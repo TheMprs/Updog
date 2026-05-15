@@ -90,25 +90,6 @@ function buildResultCard(result) {
   return card.build();
 }
 
-// ── Homepage card (no email open) ────────────────────────────────────────────
-
-function buildHomepageCard() {
-  return CardService.newCardBuilder()
-    .setHeader(
-      CardService.newCardHeader()
-        .setTitle("UpDog")
-        .setSubtitle("Phishing & Malware Scanner")
-        .setImageUrl("https://raw.githubusercontent.com/TheMprs/Updog/main/addon/logo.png")
-    )
-    .addSection(
-      CardService.newCardSection().addWidget(
-        CardService.newDecoratedText()
-          .setText("Open an email to scan it for phishing, malicious URLs, and spoofing.")
-          .setWrapText(true)
-      )
-    )
-    .build();
-}
 
 // ── Error card ───────────────────────────────────────────────────────────────
 

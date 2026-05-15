@@ -8,9 +8,6 @@
       "logoUrl": "https://raw.githubusercontent.com/TheMprs/Updog/main/addon/logo.png"
     },
     "gmail": {
-      "homepageTrigger": {
-        "runFunction": "onHomepage"
-      },
       "contextualTriggers": [
         {
           "unconditional": {},

@@ -15,10 +15,12 @@ WEIGHTS = {
 # Prevent signal dilution by safe scores elsewhere.
 # List of (analyzer_key, threshold, min_score) — multiple rules per key are allowed.
 SIGNAL_FLOORS = [
-    ("url",        0.8, 75),  # known malicious URL → at least 75
-    ("attachment", 0.6, 65),  # risky file type (.exe, .ps1 etc.) → at least 65
+    ("url",        0.8, 95),  # known malicious URL → near-certain malicious
+    ("attachment", 0.6, 80),  # risky file type (.exe, .ps1 etc.) → likely malicious
+    ("header",     0.6, 35),  # 2 auth failures → at least Suspicious
+    ("header",     0.9, 60),  # 3 auth failures → Suspicious
     ("sender",     0.7, 55),  # newly registered domain or free provider → at least 55
-    ("sender",     0.9, 70),  # clear spoofing/typosquat → at least 70
+    ("sender",     0.9, 85),  # clear spoofing/typosquat → Likely Malicious
     ("content",    0.7, 55),  # high phishing content → at least 55
     ("content",    0.9, 70),  # very high phishing content → at least 70
 ]

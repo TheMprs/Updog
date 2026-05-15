@@ -55,9 +55,6 @@ function onGmailMessage(e) {
   }
 }
 
-function onHomepage(e) {
-  return [buildHomepageCard()];
-}
 
 function pct(val) {
   if (val === undefined || val === null) return "N/A";

@@ -5,6 +5,7 @@ import concurrent.futures
 from datetime import datetime, timezone
 from .utils import parse_email
 
+import requests
 import whois as whois_lib
 
 # tests conducted on sender.py:
@@ -95,8 +96,8 @@ def check_domain_age(domain):
         if age_days < 90:
             return 0.7, False
         return 0.0, False
-    except concurrent.futures.TimeoutError:
-        return 0.2, True
+    except KeyboardInterrupt:
+        raise
     except Exception:
         return 0.2, True
 
@@ -202,6 +203,32 @@ def check_reply_to_mismatch(from_domain, reply_to_domain):
         return 0.0
 
     return 0.5
+
+def check_domain_breaches(domain):
+    """
+    Check if domain had a data breach in the last 3 years via HIBP free API.
+    Returns (had_breach, breach_info_str) — no score impact, informational only.
+    """
+    if not domain:
+        return False, None
+    try:
+        url = f"https://haveibeenpwned.com/api/v3/breaches?domain={domain}"
+        resp = requests.get(url, timeout=4, headers={"User-Agent": "UpDog-PhishingScanner/1.0"})
+        if resp.status_code != 200:
+            return False, None
+        breaches = resp.json()
+        cutoff = datetime.now(timezone.utc).replace(year=datetime.now(timezone.utc).year - 3)
+        recent = [
+            b for b in breaches
+            if b.get("BreachDate") and datetime.fromisoformat(b["BreachDate"]).replace(tzinfo=timezone.utc) >= cutoff
+        ]
+        if not recent:
+            return False, None
+        latest = max(recent, key=lambda b: b["BreachDate"])
+        return True, f"{domain} had a data breach on {latest['BreachDate']} ({latest.get('Name', domain)})"
+    except Exception:
+        return False, None
+
 
 def check_undisclosed_recipients(to_header):
     """Detect bulk spam pattern where To is hidden."""
