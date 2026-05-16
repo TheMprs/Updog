@@ -1,6 +1,7 @@
 # UpDog - Phishing & Malware Scanner for Gmail
  <p align="center">
-   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor+=white" alt="Python 3.11"></a><a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&+logoColor=white" alt="FastAPI"></a>
+   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor+=white" alt="Python 3.11"></a>
+   <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&+logoColor=white" alt="FastAPI"></a>
    <a href="https://cloud.google.com/run"><img src="https://img.shields.io/badge/GCP-Cloud%20Run-4285F4?logo=googlec+loud&logoColor=white" alt="GCP Cloud Run"></a>
    <a href="https://developers.google.com/apps-script"><img src="https://img.shields.io/badge/Apps%20Script-V8-34A85+3?logo=google&logoColor=white" alt="Google Apps Script"></a>
    <a href="https://developers.google.com/safe-browsing"><img src="https://img.shields.io/badge/Safe%20Browsing-API%20v4-EA4335?logo=google&logoColor=white" alt="Safe Browsing API"></a>
