@@ -1,3 +1,4 @@
+import os
 import pytest
 import sys
 from pathlib import Path
@@ -7,6 +8,8 @@ from unittest.mock import patch, MagicMock
 sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
 
 from analyzers.url import extract_urls, score_url, analyze_urls
+
+_FAKE_KEY = {'SAFE_BROWSING_API_KEY': 'test-key'}
 
 class TestExtractUrls:
     def test_simple_href(self):
@@ -164,6 +167,7 @@ class TestScoreUrl:
         assert score == 0.5
 
 class TestAnalyzeUrls:
+    @patch.dict(os.environ, _FAKE_KEY)
     @patch('analyzers.url.requests.post')
     def test_no_urls_found(self, mock_post):
         # Verify no API call when no URLs found
@@ -172,6 +176,7 @@ class TestAnalyzeUrls:
         assert result == 0.0
         mock_post.assert_not_called()
 
+    @patch.dict(os.environ, _FAKE_KEY)
     @patch('analyzers.url.requests.post')
     def test_safe_urls(self, mock_post):
         # Verify API returns 0.0 score when no threats found
@@ -183,6 +188,7 @@ class TestAnalyzeUrls:
         result, _ = analyze_urls(email)
         assert result == 0.0
 
+    @patch.dict(os.environ, _FAKE_KEY)
     @patch('analyzers.url.requests.post')
     def test_malicious_url(self, mock_post):
         # Verify API returns 1.0 score when MALWARE threat found
@@ -201,6 +207,7 @@ class TestAnalyzeUrls:
         result, _ = analyze_urls(email)
         assert result == 1.0
 
+    @patch.dict(os.environ, _FAKE_KEY)
     @patch('analyzers.url.requests.post')
     def test_multiple_urls_returns_max_score(self, mock_post):
         # Verify multiple malicious URLs returns highest threat score
@@ -217,6 +224,7 @@ class TestAnalyzeUrls:
         result, _ = analyze_urls(email)
         assert result == 1.0  # MALWARE score is highest
 
+    @patch.dict(os.environ, _FAKE_KEY)
     @patch('analyzers.url.requests.post')
     def test_signals_returned(self, mock_post):
         mock_response = MagicMock()
@@ -233,33 +241,32 @@ class TestAnalyzeUrls:
     @patch('analyzers.url.requests.post')
     def test_api_key_missing(self, mock_post):
         # Missing API key → silently returns safe result (no error raised)
-        import os
         with patch.dict(os.environ, {}, clear=True):
             email = "From: test@example.com\n\n<a href=\"https://example.com\">Link</a>"
             score, signals = analyze_urls(email)
         assert score == 0.0
         assert signals["malicious_urls"] == []
 
+    @patch.dict(os.environ, _FAKE_KEY)
     @patch('analyzers.url.requests.post')
     def test_api_request_timeout(self, mock_post):
         # Timeout is swallowed after retries — returns safe result
-        import requests
-        mock_post.side_effect = requests.Timeout()
-        import os
-        with patch.dict(os.environ, {'SAFE_BROWSING_API_KEY': 'test-key'}):
-            email = "From: test@example.com\n\n<a href=\"https://example.com\">Link</a>"
-            score, signals = analyze_urls(email)
+        import requests as req
+        mock_post.side_effect = req.Timeout()
+        email = "From: test@example.com\n\n<a href=\"https://example.com\">Link</a>"
+        score, _ = analyze_urls(email)
         assert score == 0.0
 
+    @patch.dict(os.environ, _FAKE_KEY)
     @patch('analyzers.url.requests.post')
     def test_api_retry_on_failure(self, mock_post):
         # Verify API retries once on connection error, succeeds on second attempt
-        import requests
+        import requests as req
         mock_response = MagicMock()
         mock_response.json.return_value = {"matches": []}
 
         # First call fails, second succeeds
-        mock_post.side_effect = [requests.ConnectionError(), mock_response]
+        mock_post.side_effect = [req.ConnectionError(), mock_response]
 
         email = "From: test@example.com\n\n<a href=\"https://example.com\">Link</a>"
         result, _ = analyze_urls(email)

@@ -12,9 +12,9 @@
       "withdrawal", "zelle"
     ],
     "urgency": [
-      "asap", "chance", "compromise", "confirm", "critical", "deadline",
+      "asap", "chance", "confirm", "critical", "deadline",
       "emergency", "expires", "final", "hours", "immediately",
-      "important", "last", "notice", "now", "only", "reminder", "risk", "soon", "suspicious",
+      "important", "last", "now", "only", "reminder", "risk", "soon", "suspicious",
       "today", "urgent"
     ],
     "actions": [
@@ -28,7 +28,7 @@
     ],
     "authority": [
       "authority", "court", "enforcement", "fine", "indictment", "law", "legal",
-      "notice", "official", "penalty", "proceeding", "subpoena", "warrant"
+      "official", "penalty", "proceeding", "subpoena", "warrant"
     ],
     "social": [
       "client", "customer", "dear", "friend", "madam", "member", "sir", "user", "valued"

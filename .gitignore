@@ -9,3 +9,5 @@ tools/credentials.json
 tools/token.json
 tools/batch_score.py
 tools/batch_results.txt
+tools/find_demos.py
+tools/demo_emails/
