@@ -1,15 +1,19 @@
 # UpDog - Phishing & Malware Scanner for Gmail
-
-![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)
-![GCP Cloud Run](https://img.shields.io/badge/GCP-Cloud%20Run-4285F4?logo=googlecloud)
-![Google Apps Script](https://img.shields.io/badge/Apps%20Script-V8-34A853?logo=google)
-![Safe Browsing](https://img.shields.io/badge/Safe%20Browsing-API%20v4-red?logo=google)
-![License](https://img.shields.io/badge/license-MIT-green)
+ <p align="center">
+   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor+=white" alt="Python 3.11"></a><a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&+logoColor=white" alt="FastAPI"></a>
+   <a href="https://cloud.google.com/run"><img src="https://img.shields.io/badge/GCP-Cloud%20Run-4285F4?logo=googlec+loud&logoColor=white" alt="GCP Cloud Run"></a>
+   <a href="https://developers.google.com/apps-script"><img src="https://img.shields.io/badge/Apps%20Script-V8-34A85+3?logo=google&logoColor=white" alt="Google Apps Script"></a>
+   <a href="https://developers.google.com/safe-browsing"><img src="https://img.shields.io/badge/Safe%20Browsing-API%20v4-EA4335?logo=google&logoColor=white" alt="Safe Browsing API"></a>
+   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
+ </p>
 
 > **What's UpDog? Hopefully nothing, but let's make sure.**
 
 UpDog is a Gmail Add-on that analyzes any open email and returns a maliciousness score from 0 (safe) to 100 (malicious), a plain-English verdict, and a list of what triggered it - so users know what to trust and why.
+
+<p align="center">
+ <img src="updog-meme.gif" alt="UpDog meme" width="320">
+</p>
 
 ---
 
@@ -233,10 +237,6 @@ gcloud run deploy updog --image gcr.io/<your-project>/updog --set-env-vars API_T
 
 ## Tech stack
 
-<table>
-<tr>
-<td>
-
 | Layer | Technology |
 |-------|-----------|
 | Add-on | Google Apps Script (V8), CardService |
@@ -249,11 +249,3 @@ gcloud run deploy updog --image gcr.io/<your-project>/updog --set-env-vars API_T
 | Archive inspection | zipfile, py7zr, rarfile |
 | Language detection | langdetect |
 
-</td>
-<td>
-
-![UpDog](updog-meme.gif)
-
-</td>
-</tr>
-</table>
