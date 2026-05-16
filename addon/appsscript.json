@@ -23,6 +23,7 @@
     "https://www.googleapis.com/auth/userinfo.email"
   ],
   "urlFetchWhitelist": [
-    "https://updog-kuupyj5m7a-uc.a.run.app/"
+    "https://updog-kuupyj5m7a-uc.a.run.app/",
+    "https://updog-9573314808.us-central1.run.app/"
   ]
 }

@@ -162,7 +162,8 @@ def analyze_content(email, attachment_filenames=None):
     email_html = parsed["body"] if (parsed["is_html"] or is_html(parsed["body"])) else None
 
     filenames_text = " ".join(attachment_filenames) if attachment_filenames else ""
-    combined_text = f"{email_subject} {email_body} {filenames_text}".strip()
+    plain_body = BeautifulSoup(email_body, "html.parser").get_text() if email_html else email_body
+    combined_text = f"{email_subject} {plain_body} {filenames_text}".strip()
 
     if not combined_text and not email_html:
         return 0.0, {"phishing_keywords": 0, "detected_language": None, "cloaking_detected": False}

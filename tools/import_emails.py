@@ -73,10 +73,10 @@ def main():
     for i, path in enumerate(eml_files, 1):
         try:
             insert_eml(service, path)
-            print(f"[{i}/{len(eml_files)}] ✓ {os.path.basename(path)}")
+            print(f"[{i}/{len(eml_files)}] OK {os.path.basename(path)}")
             success += 1
         except Exception as e:
-            print(f"[{i}/{len(eml_files)}] ✗ {os.path.basename(path)} — {e}")
+            print(f"[{i}/{len(eml_files)}] FAIL {os.path.basename(path)} - {e}")
             failed += 1
 
     print(f"\nDone: {success} inserted, {failed} failed")
