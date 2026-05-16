@@ -61,8 +61,16 @@ def _extract_domain(email_addr):
     parts = email_addr.strip().split('@')
     return parts[-1].lower() if len(parts) == 2 else ""
 
+_RDAP_SERVERS = {
+    "com": "https://rdap.verisign.com/com/v1/domain/",
+    "net": "https://rdap.verisign.com/net/v1/domain/",
+    "org": "https://rdap.pir.org/rdap/domain/",
+}
+
 def _rdap_lookup(domain):
-    resp = requests.get(f"https://rdap.org/domain/{domain}", timeout=3)
+    tld = domain.rsplit(".", 1)[-1].lower() if "." in domain else ""
+    base = _RDAP_SERVERS.get(tld, "https://rdap.org/domain/")
+    resp = requests.get(f"{base}{domain}", timeout=3)
     resp.raise_for_status()
     for event in resp.json().get("events", []):
         if event.get("eventAction") == "registration":
@@ -179,7 +187,7 @@ def check_reply_to_mismatch(from_domain, reply_to_domain):
     return 0.5
 
 def check_suspicious_tld(domain):
-    """Flag domains using TLDs disproportionately associated with phishing."""
+    """Flag domains using extensions disproportionately associated with phishing."""
     if not domain:
         return 0.0
     tld = domain.rsplit(".", 1)[-1].lower()

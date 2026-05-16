@@ -33,7 +33,7 @@ SIGNAL_FLOORS = [
     ("header",     0.3, 20),  # 1 auth failure → at least Likely Safe
     ("header",     0.6, 35),  # 2 auth failures → at least Suspicious
     ("header",     0.9, 60),  # 3 auth failures → Suspicious
-    ("sender",     0.4, 35),  # suspicious TLD or unverifiable domain → at least Suspicious
+    ("sender",     0.4, 35),  # suspicious domain extension + unverifiable domain age combined → at least Suspicious
     ("sender",     0.7, 55),  # newly registered domain or free provider → at least 55
     ("sender",     0.9, 85),  # clear spoofing/typosquat → Likely Malicious
     ("content",    0.7, 55),  # high phishing content → at least 55

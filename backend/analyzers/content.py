@@ -100,6 +100,12 @@ def detect_cloaking(email_html):
             triggers.append("javascript_href")
             break
 
+    # tiny_font alone is a common legitimate pattern (email preheader text) — only flag it
+    # when combined with at least one other obfuscation technique
+    other_triggers = [t for t in triggers if not t.startswith("tiny_font_")]
+    if not other_triggers:
+        return 0.0, []
+
     cloaking_score = min(1.0, cloaking_count * 0.25)
     return cloaking_score, triggers
 

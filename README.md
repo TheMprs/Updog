@@ -60,14 +60,16 @@ In order to prevent diluting strong signals, I implemented a signal floor logic 
 |-----------|-------|
 | Known malicious URL | 95 |
 | Risky attachment type | 80 |
-| Clear brand spoofing or typosquatting | 85 |
-| Newly registered or suspicious domain | 55 |
-| Suspicious domain or unverifiable domain age | 35 |
+| Clear brand impersonation or typosquatting | 85 |
+| Newly registered domain (< 90 days) | 55 |
+| Suspicious domain extension + unverifiable domain age (combined) | 35 |
 | All three auth checks failed (SPF, DKIM, DMARC) | 60 |
 | Two auth failures | 35 |
+| One auth failure | 20 |
 | Very high phishing keyword density | 70 |
 | High phishing keyword density | 55 |
 | Domain age unverifiable + any auth failure | 35 |
+| Domain age unverifiable + no auth headers present | 25 |
 
 ### Score areas
 
@@ -104,7 +106,7 @@ In order to prevent diluting strong signals, I implemented a signal floor logic 
 
 ### Content
 - Phishing keywords — we count keywords across categories (money, urgency, actions, account, authority, social, delivery) in English and Hebrew, then we normalize by total word count to avoid false positives on long legitimate emails
-- HTML cloaking detection: invisible text (white-on-white, 0px fonts), base64 HTML data URIs, executable `<script>` tags, `javascript:` hrefs
+- HTML cloaking detection: invisible text (white-on-white, 0px fonts), base64 HTML data URIs, executable `<script>` tags, `javascript:` hrefs. Tiny fonts alone are not flagged — they are a common legitimate pattern (email preheader text); they only count when combined with another technique
 - Excessive all-caps detection
 - Large monetary amounts (advance-fee fraud pattern)
 - Language detection — non-English emails get a minor penalty; keyword scoring covers English and Hebrew
@@ -215,7 +217,7 @@ gcloud run deploy updog --image gcr.io/<your-project>/updog --set-env-vars API_T
 - **Non-English phishing** — keyword scoring covers English and Hebrew. Phishing emails in other languages score lower on the content signal. Additional per-language keyword lists would improve coverage.
 - **Image-only phishing** — emails that embed the malicious content entirely as an image bypass all text-based checks. OCR would be needed to address this.
 - **URL sandbox** — Safe Browsing catches known-bad URLs but not zero-day phishing pages. A headless browser screenshot or redirect-chain analysis would improve coverage.
-- **Domain age gaps** — RDAP coverage varies by TLD registry. Unknown domain age returns a conservative non-zero score rather than a hard failure.
+- **Domain age gaps** — RDAP coverage varies by domain extension registry. Unknown domain age returns a conservative non-zero score rather than a hard failure.
 
 ---
 
