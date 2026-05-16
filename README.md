@@ -115,7 +115,7 @@ In order to prevent diluting strong signals, I implemented a signal floor logic 
 - Risky extension scoring (`.exe` → 1.0, `.ps1` → 0.8, `.docm` → 0.6, `.pdf` → 0.3, etc.)
 - Password-protected archive detection (ZIP, RAR, 7z) — a common technique to bypass AV scanners
 - MIME type / extension mismatch — a `.pdf` that is actually a ZIP is a red flag
-- PDF active content detection — scans PDF bytes for `/Launch` (runs an external program) and `/JS`/`/JavaScript` (embedded JavaScript); these keywords are absent from all legitimate email PDFs like tickets and invoices
+- PDF active content detection — scans PDF bytes for `/Launch` (runs an external program), `/JS`/`/JavaScript` (embedded JavaScript), and `/Encrypt` (password-protected); all three are absent from legitimate email PDFs like tickets and invoices and are used to hide malicious content from scanners
 
 ### Forwarded emails
 The scorer extracts the original `From:` address from forwarded message headers and runs a second sender analysis on it. If the inner sender scores higher than the outer one, the inner score wins — this catches the common pattern of wrapping a phishing email in a forwarded shell.

@@ -61,11 +61,23 @@ def _extract_domain(email_addr):
     parts = email_addr.strip().split('@')
     return parts[-1].lower() if len(parts) == 2 else ""
 
-_RDAP_SERVERS = {
-    "com": "https://rdap.verisign.com/com/v1/domain/",
-    "net": "https://rdap.verisign.com/net/v1/domain/",
-    "org": "https://rdap.pir.org/rdap/domain/",
-}
+def _build_rdap_map():
+    """Fetch IANA's RDAP bootstrap file and build a TLD → base-URL map.
+    Falls back to an empty dict on any failure so rdap.org is used instead."""
+    try:
+        resp = requests.get("https://data.iana.org/rdap/dns.json", timeout=5)
+        resp.raise_for_status()
+        rdap_map = {}
+        for tlds, servers in resp.json().get("services", []):
+            if servers:
+                base = servers[0].rstrip("/") + "/domain/"
+                for tld in tlds:
+                    rdap_map[tld.lower()] = base
+        return rdap_map
+    except Exception:
+        return {}
+
+_RDAP_SERVERS = _build_rdap_map()
 
 def _rdap_lookup(domain):
     tld = domain.rsplit(".", 1)[-1].lower() if "." in domain else ""

@@ -219,8 +219,8 @@ _PDF_JS_TOKENS = (b'/JS ', b'/JS(', b'/JS\r', b'/JS\n', b'/JavaScript')
 
 def check_pdf_actions(attachments):
     """
-    Scan PDF bytes for action keywords that indicate executable content.
-    /Launch and /JS almost never appear in legitimate email attachments.
+    Scan PDF bytes for action keywords that indicate executable content or encryption.
+    /Launch, /JS, and /Encrypt almost never appear in legitimate email attachments.
     """
     max_score = 0.0
     for att in attachments:
@@ -230,6 +230,7 @@ def check_pdf_actions(attachments):
         has_launch = b'/Launch' in content
         has_js = any(kw in content for kw in _PDF_JS_TOKENS)
         has_open_action = b'/OpenAction' in content
+        has_encrypt = b'/Encrypt' in content
 
         if has_launch:
             score = 0.85
@@ -237,6 +238,8 @@ def check_pdf_actions(attachments):
             score = 0.8
         elif has_js:
             score = 0.6
+        elif has_encrypt:
+            score = 0.6  # password-protected PDF — same bypass technique as encrypted ZIP
         else:
             continue
         max_score = max(max_score, score)

@@ -62,7 +62,7 @@ BULLET_RULES = [
     (lambda s: s.get("mime_mismatch"),                    "❌", "Attachment file type is disguised"),
     (lambda s: s.get("encrypted_archive"),                "⚠️", "Password-protected archive attached"),
     (lambda s: s.get("risky_extension"),                  "⚠️", "Risky attachment type detected"),
-    (lambda s: s.get("pdf_active_content"),               "❌", "PDF contains executable actions (JavaScript or Launch)"),
+    (lambda s: s.get("pdf_active_content"),               "❌", "PDF is password-protected or contains executable content"),
     (lambda s: s.get("caps_abuse"),                       "⚠️", "Excessive use of capitals detected"),
     (lambda s: s.get("large_money_amount"),               "❌", "Large monetary amounts mentioned"),
     (lambda s: s.get("undisclosed_recipients"),           "⚠️", "Email sent to undisclosed recipients"),
