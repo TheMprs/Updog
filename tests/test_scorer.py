@@ -133,7 +133,7 @@ class TestGenerateBullets:
             "display_name_spoof": False, "reply_to_mismatch": False,
             "typosquat_detected": False, "free_provider_spoof": False,
             "malicious_urls": [], "phishing_keywords": 0,
-            "obfuscation_detected": False, "mime_mismatch": False,
+            "cloaking_detected": False, "mime_mismatch": False,
             "encrypted_archive": False, "risky_extension": False,
         }
         assert generate_bullets(signals) == []
@@ -168,10 +168,10 @@ class TestGenerateBullets:
         bullets = generate_bullets({"high_keyword_density": True})
         assert any("phishing keyword" in b.lower() for b in bullets)
 
-    def test_obfuscation_produces_bullet(self):
-        """HTML obfuscation flag should produce a bullet."""
-        bullets = generate_bullets({"obfuscation_detected": True})
-        assert any("obfuscation" in b.lower() for b in bullets)
+    def test_cloaking_produces_bullet(self):
+        """HTML cloaking flag should produce a bullet."""
+        bullets = generate_bullets({"cloaking_detected": True})
+        assert any("cloaking" in b.lower() for b in bullets)
 
     def test_risky_extension_produces_bullet(self):
         """Risky file extension should produce a bullet."""
@@ -212,7 +212,7 @@ class TestAnalyze:
                               attachment=(0.0, {"total_attachments": 0, "risky_extension": False,
                                                 "encrypted_archive": False, "mime_mismatch": False,
                                                 "risky_files": []}),
-                              content=(0.0, {"phishing_keywords": 0, "obfuscation_detected": False,
+                              content=(0.0, {"phishing_keywords": 0, "cloaking_detected": False,
                                              "detected_language": "en"})):
         """Context manager that mocks all five analyzers."""
         return [

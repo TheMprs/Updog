@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
 
 from analyzers.content import (
-    detect_obfuscation,
+    detect_cloaking,
     detect_language,
     count_phishing_matches,
     analyze_content,
@@ -14,56 +14,56 @@ from analyzers.content import (
 )
 
 
-class TestDetectObfuscation:
+class TestDetectCloaking:
     def test_safe_html(self):
         html = '<div style="color: black; font-size: 14px;">Hello, this is a normal email.</div>'
-        score, _ = detect_obfuscation(html)
+        score, _ = detect_cloaking(html)
         assert score == 0.0
 
     def test_zero_font_size_px(self):
         html = '<span style="font-size: 0px;">hidden text</span>'
-        score, _ = detect_obfuscation(html)
+        score, _ = detect_cloaking(html)
         assert score > 0.0
 
     def test_zero_font_size_no_unit(self):
         html = '<span style="font-size: 0;">hidden text</span>'
-        score, _ = detect_obfuscation(html)
+        score, _ = detect_cloaking(html)
         assert score > 0.0
 
     def test_sub_pixel_font_size(self):
         html = '<span style="font-size: 0.5px;">hidden text</span>'
-        score, _ = detect_obfuscation(html)
+        score, _ = detect_cloaking(html)
         assert score > 0.0
 
     def test_invisible_text_white_on_white(self):
         html = '<span style="color: white; background: #ffffff;">invisible</span>'
-        score, _ = detect_obfuscation(html)
+        score, _ = detect_cloaking(html)
         assert score > 0.0
 
     def test_invisible_text_hex_color(self):
         html = '<div style="color: #fff; background: white;">hidden</div>'
-        score, _ = detect_obfuscation(html)
+        score, _ = detect_cloaking(html)
         assert score > 0.0
 
     def test_base64_payload(self):
         html = '<iframe src="data:text/html;base64,PHNjcmlwdD5hbGVydCgxKTwvc2NyaXB0Pg=="></iframe>'
-        score, _ = detect_obfuscation(html)
+        score, _ = detect_cloaking(html)
         assert score >= 0.4
 
-    def test_multiple_obfuscation_techniques_capped(self):
+    def test_multiple_cloaking_techniques_capped(self):
         html = '''
         <span style="font-size: 0px; color: white; background: #ffffff;">hidden</span>
         <iframe src="data:text/html;base64,abc123"></iframe>
         '''
-        score, _ = detect_obfuscation(html)
+        score, _ = detect_cloaking(html)
         assert score == 1.0
 
     def test_empty_html(self):
-        score, _ = detect_obfuscation("")
+        score, _ = detect_cloaking("")
         assert score == 0.0
 
     def test_none_input(self):
-        score, _ = detect_obfuscation(None)
+        score, _ = detect_cloaking(None)
         assert score == 0.0
 
 
@@ -221,8 +221,8 @@ class TestAnalyzeContent:
         score, _ = analyze_content(email)
         assert score == 1.0
 
-    def test_obfuscation_alone_raises_score(self):
-        # Multiple HTML obfuscation techniques (score >= 0.5) should raise the content score
+    def test_cloaking_alone_raises_score(self):
+        # Multiple HTML cloaking techniques (score >= 0.5) should raise the content score
         email = (
             "From: scammer@evil.com\nSubject: Hello\n\n"
             '<html><body>'
@@ -237,4 +237,4 @@ class TestAnalyzeContent:
         _, signals = analyze_content(email)
         assert signals["phishing_keywords"] > 0
         assert signals["detected_language"] is not None
-        assert isinstance(signals["obfuscation_detected"], bool)
+        assert isinstance(signals["cloaking_detected"], bool)

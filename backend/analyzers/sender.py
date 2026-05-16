@@ -26,8 +26,6 @@ MAJOR_BRAND_KEYWORDS = {
     "maccabi", "clal", "discount", "cal", "union", "psagot", "menora", "migdal", "yad2"
 }
 
-FREE_EMAIL_PROVIDERS = {"gmail.com", "yahoo.com", "hotmail.com", "outlook.com", "aol.com"}
-
 SUSPICIOUS_TLDS = {
     "site", "online", "xyz", "click", "top", "work", "link",
     "live", "icu", "buzz", "gdn", "su", "bid", "pw",
@@ -156,25 +154,6 @@ def check_display_name_spoofing(from_header, sender_domain):
 
     return 0.0
 
-def check_free_email_provider(sender_domain, from_header=""):
-    """
-    Flag free provider only when the display name claims to be a known brand.
-    A small business legitimately using Gmail should not be penalized.
-    """
-    if not sender_domain or sender_domain.lower() not in FREE_EMAIL_PROVIDERS:
-        return 0.0
-
-    display_name_match = re.match(r'^"?([^"<]+)"?\s*<', from_header)
-    if not display_name_match:
-        return 0.0
-
-    display_name = display_name_match.group(1).strip().lower()
-    for keyword in MAJOR_BRAND_KEYWORDS:
-        if keyword in display_name:
-            return 0.3
-
-    return 0.0
-
 def check_reply_to_mismatch(from_domain, reply_to_domain):
     """
     Check if Reply-To header differs significantly from From domain.
@@ -298,28 +277,30 @@ def analyze_sender(email, auth=None):
             typosquat_auth_mitigated = True
 
     spoofing_score = check_display_name_spoofing(from_header, sender_domain)
-
-    # Display name spoof + passing auth = likely legitimate sending service
-    if spoofing_score > 0 and auth:
-        auth_passed = auth.get("spf") == "pass" and auth.get("dkim") == "pass"
-        if auth_passed:
-            spoofing_score = 0.5
-    free_email_score = check_free_email_provider(sender_domain, from_header)
     mismatch_score = check_reply_to_mismatch(sender_domain, reply_to_domain)
+
+    # All three auth checks passing suggests a legitimate sending service — reduce but don't clear
+    # (attackers can configure auth on their own domains, so 0.35 keeps a meaningful signal)
+    if auth:
+        triple_pass = auth.get("spf") == "pass" and auth.get("dkim") == "pass" and auth.get("dmarc") == "pass"
+        if triple_pass:
+            if spoofing_score > 0.35:
+                spoofing_score = 0.35
+            if mismatch_score > 0.35:
+                mismatch_score = 0.35
     undisclosed_score = check_undisclosed_recipients(to_header)
     tld_score = check_suspicious_tld(sender_domain)
 
     high_signal = max(spoofing_score, typo_score, mismatch_score)
 
     if high_signal > 0:
-        sender_score = min(1.0, high_signal + age_score * 0.15 + free_email_score * 0.1 + undisclosed_score * 0.2 + tld_score * 0.1)
+        sender_score = min(1.0, high_signal + age_score * 0.15 + undisclosed_score * 0.2 + tld_score * 0.1)
     else:
-        sender_score = min(1.0, age_score * 0.7 + free_email_score * 0.3 + undisclosed_score * 0.3 + tld_score)
+        sender_score = min(1.0, age_score * 0.7 + undisclosed_score * 0.3 + tld_score)
 
     return sender_score, {
         "display_name_spoof":      spoofing_score > 0,
         "reply_to_mismatch":       mismatch_score > 0,
-        "free_provider_spoof":     free_email_score > 0,
         "typosquat_detected":      typo_score > 0,
         "typosquat_auth_mitigated": typosquat_auth_mitigated,
         "typosquat_target":        typo_target,

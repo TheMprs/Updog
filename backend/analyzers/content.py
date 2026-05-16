@@ -8,7 +8,7 @@ from .utils import parse_email, is_html
 # tests conducted on content.py:
 # 1. parse email for phishing keywords
 # 2. check if email is in unexpected language (lang is not heb/eng)
-# 3. detect HTML obfuscation techniques (invisible text, tiny fonts, base64 encoding)
+# 3. detect HTML cloaking techniques (invisible text, tiny fonts, base64 encoding)
 
 def _load_keywords():
     path = os.path.join(os.path.dirname(__file__), "phishing_keywords.json")
@@ -31,9 +31,9 @@ def count_phishing_matches(text, keyword_dict):
 
 SAFE_LANGUAGES = {"en", "he"}  # English and Hebrew
 
-def detect_obfuscation(email_html):
+def detect_cloaking(email_html):
     """
-    Detect HTML obfuscation techniques used to bypass spam filters.
+    Detect HTML cloaking techniques used to bypass spam filters.
     Returns (score, triggers) where score is 0.0–1.0 and triggers is a list of fired check names.
     """
     if not email_html:
@@ -44,7 +44,7 @@ def detect_obfuscation(email_html):
     except Exception:
         return 0.0, []
 
-    obfuscation_count = 0
+    cloaking_count = 0
     triggers = []
 
     # Detect invisible text (white text, 0px fonts, etc.)
@@ -60,7 +60,7 @@ def detect_obfuscation(email_html):
                 if bg_match:
                     bg_value = bg_match.group(1).lower()
                     if any(x in bg_value for x in ['white', '#fff', '#ffffff', 'transparent']):
-                        obfuscation_count += 1
+                        cloaking_count += 1
                         triggers.append("white_on_white_text")
 
         # Detect font sizes smaller than 1px — only flag if the tag has direct text
@@ -72,36 +72,36 @@ def detect_obfuscation(email_html):
                 value = float(match.group(1))
                 unit = (match.group(2) or 'px').lower()
                 if unit == 'px' and value < 1:
-                    obfuscation_count += 1
+                    cloaking_count += 1
                     triggers.append(f"tiny_font_{value}px")
                 elif unit in ('em', 'rem') and value < 0.067:
-                    obfuscation_count += 1
+                    cloaking_count += 1
                     triggers.append(f"tiny_font_{value}{unit}")
 
     html_str = str(soup)
 
     # Detect base64-encoded HTML data URI (hides content from text scanners)
     if re.search(r'data:text/html;base64,', html_str):
-        obfuscation_count += 2
+        cloaking_count += 2
         triggers.append("base64_html_data_uri")
 
     # Detect executable script tags — anything that isn't JSON-LD structured data
     for script in soup.find_all("script"):
         script_type = (script.get("type") or "").strip().lower()
         if script_type != "application/ld+json":
-            obfuscation_count += 2
+            cloaking_count += 2
             triggers.append(f"executable_script_type:{script_type or 'none'}")
             break
 
     # Detect javascript: hrefs — always malicious intent in email
     for tag in soup.find_all(href=True):
         if tag["href"].strip().lower().startswith("javascript:"):
-            obfuscation_count += 2
+            cloaking_count += 2
             triggers.append("javascript_href")
             break
 
-    obfuscation_score = min(1.0, obfuscation_count * 0.25)
-    return obfuscation_score, triggers
+    cloaking_score = min(1.0, cloaking_count * 0.25)
+    return cloaking_score, triggers
 
 def detect_language(text):
     """
@@ -159,7 +159,7 @@ def analyze_content(email, attachment_filenames=None):
     combined_text = f"{email_subject} {email_body} {filenames_text}".strip()
 
     if not combined_text and not email_html:
-        return 0.0, {"phishing_keywords": 0, "detected_language": None, "obfuscation_detected": False}
+        return 0.0, {"phishing_keywords": 0, "detected_language": None, "cloaking_detected": False}
 
     # Detect language from text only (not from raw HTML markup)
     text_for_language_detection = combined_text
@@ -198,23 +198,23 @@ def analyze_content(email, attachment_filenames=None):
     category_ratio = phishing_count / total_categories
     keyword_score = min(0.7, category_ratio * density_multiplier)
 
-    # Detect HTML obfuscation (if HTML is provided)
-    obfuscation_score = 0.0
-    obfuscation_triggers = []
+    # Detect HTML cloaking (if HTML is provided)
+    cloaking_score = 0.0
+    cloaking_triggers = []
     if email_html:
-        obfuscation_score, obfuscation_triggers = detect_obfuscation(email_html)
+        cloaking_score, cloaking_triggers = detect_cloaking(email_html)
 
     caps_score  = detect_caps_abuse(combined_text)
     money_score = detect_large_money_amounts(combined_text)
-    effective_obfuscation = obfuscation_score if obfuscation_score >= 0.5 else 0.0
-    content_score = min(1.0, keyword_score + language_penalty + effective_obfuscation + caps_score + money_score)
+    effective_cloaking = cloaking_score if cloaking_score >= 0.5 else 0.0
+    content_score = min(1.0, keyword_score + language_penalty + effective_cloaking + caps_score + money_score)
 
     return content_score, {
         "phishing_keywords":    phishing_count,
         "detected_language":    detected_lang,
         "high_keyword_density": keyword_score >= 0.3,
-        "obfuscation_detected": obfuscation_score >= 0.5,
-        "obfuscation_triggers": ", ".join(obfuscation_triggers) if obfuscation_triggers else None,
+        "cloaking_detected": cloaking_score >= 0.5,
+        "cloaking_triggers": ", ".join(cloaking_triggers) if cloaking_triggers else None,
         "caps_abuse":           caps_score > 0,
         "large_money_amount":   money_score > 0,
     }

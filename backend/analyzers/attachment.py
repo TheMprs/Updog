@@ -215,6 +215,34 @@ def check_mime_extension_mismatch(attachments):
 
     return max_mismatch_score
 
+_PDF_JS_TOKENS = (b'/JS ', b'/JS(', b'/JS\r', b'/JS\n', b'/JavaScript')
+
+def check_pdf_actions(attachments):
+    """
+    Scan PDF bytes for action keywords that indicate executable content.
+    /Launch and /JS almost never appear in legitimate email attachments.
+    """
+    max_score = 0.0
+    for att in attachments:
+        if not att["filename"].lower().endswith(".pdf"):
+            continue
+        content = att.get("content") or b""
+        has_launch = b'/Launch' in content
+        has_js = any(kw in content for kw in _PDF_JS_TOKENS)
+        has_open_action = b'/OpenAction' in content
+
+        if has_launch:
+            score = 0.85
+        elif has_open_action and has_js:
+            score = 0.8
+        elif has_js:
+            score = 0.6
+        else:
+            continue
+        max_score = max(max_score, score)
+    return max_score
+
+
 def analyze_attachments(email_raw):
     """
     Analyze email attachments for malicious indicators.
@@ -229,14 +257,15 @@ def analyze_attachments(email_raw):
     attachments = extract_attachments(email_raw)
 
     if not attachments:
-        return 0.0, {"risky_extension": False, "encrypted_archive": False, "mime_mismatch": False, "risky_files": [], "total_attachments": 0}
+        return 0.0, {"risky_extension": False, "encrypted_archive": False, "mime_mismatch": False, "pdf_active_content": False, "risky_files": [], "total_attachments": 0}
 
     # Run all checks and take maximum score
-    mime_score = check_risky_mime_types(attachments)
-    zip_score = check_encrypted_archives(attachments)
-    mismatch_score = check_mime_extension_mismatch(attachments)
+    mime_score      = check_risky_mime_types(attachments)
+    zip_score       = check_encrypted_archives(attachments)
+    mismatch_score  = check_mime_extension_mismatch(attachments)
+    pdf_action_score = check_pdf_actions(attachments)
 
-    attachment_score = max(mime_score, zip_score, mismatch_score)
+    attachment_score = max(mime_score, zip_score, mismatch_score, pdf_action_score)
 
     risky_files = [
         a["filename"] for a in attachments
@@ -245,11 +274,12 @@ def analyze_attachments(email_raw):
     ]
 
     return attachment_score, {
-        "risky_extension": mime_score >= 0.5,
-        "encrypted_archive": zip_score > 0,
-        "mime_mismatch": mismatch_score > 0,
-        "risky_files": risky_files,
-        "filenames": [a["filename"] for a in attachments],
-        "total_attachments": len(attachments),
+        "risky_extension":    mime_score >= 0.5,
+        "encrypted_archive":  zip_score > 0,
+        "mime_mismatch":      mismatch_score > 0,
+        "pdf_active_content": pdf_action_score >= 0.6,
+        "risky_files":        risky_files,
+        "filenames":          [a["filename"] for a in attachments],
+        "total_attachments":  len(attachments),
     }
 

@@ -54,7 +54,7 @@ URL and attachment weights are removed and redistributed when an email has no UR
 
 ### Signal floors
 
-In order to prevent diluting strong signals, I implemented a signal floor logic system, if a single signal hits a threshold we trigger a jump in score:
+In order to prevent diluting strong signals, I implemented a signal floor logic system — if a signal (or combination of signals) hits a threshold, the score is forced to at least a minimum value:
 
 | Condition | Floor |
 |-----------|-------|
@@ -62,11 +62,12 @@ In order to prevent diluting strong signals, I implemented a signal floor logic 
 | Risky attachment type | 80 |
 | Clear brand spoofing or typosquatting | 85 |
 | Newly registered or suspicious domain | 55 |
-| Suspicious email extension or unverifiable domain age | 35 |
+| Suspicious domain or unverifiable domain age | 35 |
 | All three auth checks failed (SPF, DKIM, DMARC) | 60 |
 | Two auth failures | 35 |
 | Very high phishing keyword density | 70 |
 | High phishing keyword density | 55 |
+| Domain age unverifiable + any auth failure | 35 |
 
 ### Score areas
 
@@ -82,29 +83,28 @@ In order to prevent diluting strong signals, I implemented a signal floor logic 
 
 ## What each analyzer checks
 
-### Headers
+### Email Headers
 - SPF, DKIM, and DMARC pass/fail from the `Authentication-Results` header
 - Counts explicit failures only — a missing header is not treated as a failure
 
 ### Sender
 - **Display name spoofing** — "PayPal Support" sent from `evil.com`
-- **Typosquatting** — Levenshtein distance against 10 major brand domains (`paypa1.com`, `arnazon.com`)
+- **Typosquatting** — Levenshtein distance against major brand domains (`paypa1.com`, `arnazon.com`)
 - **Subdomain spoofing** — brand name embedded as a label (`paypal.evil.com`)
-- **Domain age** — via RDAP (replaced python-whois for speed); domains under 30 days score 1.0, under 90 days score 0.7
-- **Suspicious TLDs** — `.xyz`, `.click`, `.icu`, `.pw` and others disproportionately used in phishing campaigns
-- **Free provider spoofing** — Gmail/Yahoo sender claiming to be a known brand
-- **Auth mitigation** — if SPF and DKIM both pass, subdomain spoofing confidence is reduced (likely a legitimate sending service like Mailchimp)
-- **HIBP breach check** — asynchronous lookup against HaveIBeenPwned; informational only, no score impact
+- **Domain age** — via RDAP; domains under 30 days score 1.0, under 90 days score 0.7
+- **Suspicious domains** — domains using extensions like `.xyz`, `.click`, `.icu`, `.pw` and others disproportionately associated with phishing
+- **Auth mitigation** — if SPF and DKIM both pass, subdomain spoofing confidence is reduced (likely a legitimate sending service like comeet)
+- **HIBP breach check** — lookup against HaveIBeenPwned; informational only, no score impact
 
 ### URLs
-- Extracts URLs from HTML (`<a>`, `<img>`, `<iframe>`, forms, CSS, meta refresh, plain text)
-- Unwraps Gmail tracking redirects (`google.com/url?q=...`) before scanning
+- Extracts URLs from HTML 
+- Removes Gmail redirects (`google.com/url?q=...`) before scanning (prevents checking the `google.com` url)
 - Checks against Google Safe Browsing API (MALWARE, SOCIAL_ENGINEERING, UNWANTED_SOFTWARE, POTENTIALLY_HARMFUL_APPLICATION)
 - Scores by threat type severity; returns the worst URL found
 
 ### Content
-- Phishing keyword density scoring — counts matches across categories (money, urgency, actions, account, authority, social, delivery) in English and Hebrew, then normalizes by total word count to avoid false positives on long legitimate emails
-- HTML obfuscation detection: invisible text (white-on-white, 0px fonts), base64 HTML data URIs, executable `<script>` tags, `javascript:` hrefs
+- Phishing keywords — we count keywords across categories (money, urgency, actions, account, authority, social, delivery) in English and Hebrew, then we normalize by total word count to avoid false positives on long legitimate emails
+- HTML cloaking detection: invisible text (white-on-white, 0px fonts), base64 HTML data URIs, executable `<script>` tags, `javascript:` hrefs
 - Excessive all-caps detection
 - Large monetary amounts (advance-fee fraud pattern)
 - Language detection — non-English emails get a minor penalty; keyword scoring covers English and Hebrew
@@ -113,6 +113,7 @@ In order to prevent diluting strong signals, I implemented a signal floor logic 
 - Risky extension scoring (`.exe` → 1.0, `.ps1` → 0.8, `.docm` → 0.6, `.pdf` → 0.3, etc.)
 - Password-protected archive detection (ZIP, RAR, 7z) — a common technique to bypass AV scanners
 - MIME type / extension mismatch — a `.pdf` that is actually a ZIP is a red flag
+- PDF active content detection — scans PDF bytes for `/Launch` (runs an external program) and `/JS`/`/JavaScript` (embedded JavaScript); these keywords are absent from all legitimate email PDFs like tickets and invoices
 
 ### Forwarded emails
 The scorer extracts the original `From:` address from forwarded message headers and runs a second sender analysis on it. If the inner sender scores higher than the outer one, the inner score wins — this catches the common pattern of wrapping a phishing email in a forwarded shell.
