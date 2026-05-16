@@ -1,5 +1,12 @@
 # UpDog - Phishing & Malware Scanner for Gmail
 
+![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi)
+![GCP Cloud Run](https://img.shields.io/badge/GCP-Cloud%20Run-4285F4?logo=googlecloud)
+![Google Apps Script](https://img.shields.io/badge/Apps%20Script-V8-34A853?logo=google)
+![Safe Browsing](https://img.shields.io/badge/Safe%20Browsing-API%20v4-red?logo=google)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 > **What's UpDog? Hopefully nothing, but let's make sure.**
 
 UpDog is a Gmail Add-on that analyzes any open email and returns a maliciousness score from 0 (safe) to 100 (malicious), a plain-English verdict, and a list of what triggered it - so users know what to trust and why.
@@ -226,6 +233,10 @@ gcloud run deploy updog --image gcr.io/<your-project>/updog --set-env-vars API_T
 
 ## Tech stack
 
+<table>
+<tr>
+<td>
+
 | Layer | Technology |
 |-------|-----------|
 | Add-on | Google Apps Script (V8), CardService |
@@ -237,3 +248,12 @@ gcloud run deploy updog --image gcr.io/<your-project>/updog --set-env-vars API_T
 | HTML parsing | BeautifulSoup4 |
 | Archive inspection | zipfile, py7zr, rarfile |
 | Language detection | langdetect |
+
+</td>
+<td>
+
+![UpDog](updog-meme.gif)
+
+</td>
+</tr>
+</table>
