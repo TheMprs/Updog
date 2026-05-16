@@ -212,7 +212,7 @@ def analyze_content(email, attachment_filenames=None):
     if email_html:
         cloaking_score, cloaking_triggers = detect_cloaking(email_html)
 
-    caps_score  = detect_caps_abuse(combined_text)
+    caps_score  = detect_caps_abuse(combined_text) if detected_lang == "en" else 0.0
     money_score = detect_large_money_amounts(combined_text)
     effective_cloaking = cloaking_score if cloaking_score >= 0.5 else 0.0
     content_score = min(1.0, keyword_score + language_penalty + effective_cloaking + caps_score + money_score)
