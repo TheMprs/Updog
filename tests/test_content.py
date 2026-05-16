@@ -20,20 +20,23 @@ class TestDetectCloaking:
         score, _ = detect_cloaking(html)
         assert score == 0.0
 
-    def test_zero_font_size_px(self):
+    def test_zero_font_size_px_alone_suppressed(self):
+        """Tiny font alone is suppressed — common in legitimate email preheaders."""
         html = '<span style="font-size: 0px;">hidden text</span>'
         score, _ = detect_cloaking(html)
-        assert score > 0.0
+        assert score == 0.0
 
-    def test_zero_font_size_no_unit(self):
-        html = '<span style="font-size: 0;">hidden text</span>'
+    def test_zero_font_size_combined_flagged(self):
+        """Tiny font combined with another cloaking technique should score > 0."""
+        html = '<span style="font-size: 0px;">hidden text</span><iframe src="data:text/html;base64,abc"></iframe>'
         score, _ = detect_cloaking(html)
         assert score > 0.0
 
-    def test_sub_pixel_font_size(self):
+    def test_sub_pixel_font_size_alone_suppressed(self):
+        """Sub-pixel font alone is suppressed."""
         html = '<span style="font-size: 0.5px;">hidden text</span>'
         score, _ = detect_cloaking(html)
-        assert score > 0.0
+        assert score == 0.0
 
     def test_invisible_text_white_on_white(self):
         html = '<span style="color: white; background: #ffffff;">invisible</span>'

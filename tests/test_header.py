@@ -9,7 +9,6 @@ from analyzers.header import (
     parse_authentication_results,
     is_major_domain,
     check_auth_failures,
-    check_spam_score,
     analyze_headers,
 )
 
@@ -147,48 +146,6 @@ class TestCheckAuthFailures:
         score = check_auth_failures(headers)
         assert score == 0.0
 
-class TestCheckSpamScore:
-    def test_normal_score(self):
-        # Verify spam score is normalized to 0-1 range
-        headers = {"X-Spam-Score": "3"}
-        score = check_spam_score(headers)
-        assert score == 0.3
-
-    def test_high_spam_score(self):
-        # Verify high spam score maps correctly
-        headers = {"X-Spam-Score": "8"}
-        score = check_spam_score(headers)
-        assert score == 0.8
-
-    def test_zero_score(self):
-        # Verify zero spam score returns 0.0
-        headers = {"X-Spam-Score": "0"}
-        score = check_spam_score(headers)
-        assert score == 0.0
-
-    def test_missing_header(self):
-        # Verify missing header defaults to 0.0
-        headers = {}
-        score = check_spam_score(headers)
-        assert score == 0.0
-
-    def test_invalid_score(self):
-        # Verify invalid score string returns 0.0
-        headers = {"X-Spam-Score": "invalid"}
-        score = check_spam_score(headers)
-        assert score == 0.0
-
-    def test_score_capped_at_1(self):
-        # Verify high scores are capped at 1.0
-        headers = {"X-Spam-Score": "15"}
-        score = check_spam_score(headers)
-        assert score == 1.0
-
-    def test_negative_score_capped_at_0(self):
-        # Verify negative scores are capped at 0.0
-        headers = {"X-Spam-Score": "-5"}
-        score = check_spam_score(headers)
-        assert score == 0.0
 
 class TestAnalyzeHeaders:
     def test_clean_email(self):
@@ -216,4 +173,3 @@ class TestAnalyzeHeaders:
         assert signals["dkim"] == "fail"
         assert signals["dmarc"] == "pass"
         assert signals["is_major_domain"] is True
-        assert signals["spam_score"] == pytest.approx(0.3)

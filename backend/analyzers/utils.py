@@ -1,6 +1,21 @@
 import re
 import email as email_lib
-from email import policy
+from email import policy, message_from_string
+
+MAJOR_DOMAINS = {
+    "google.com", "microsoft.com", "apple.com", "amazon.com",
+    "paypal.com", "bank", "irs.gov", "fedex.com", "ups.com", "upwind"
+}
+
+
+def parse_headers(email_raw):
+    """Return a dict of header name → value from a raw email string."""
+    msg = message_from_string(email_raw or "")
+    headers = {}
+    for key in msg.keys():
+        if key not in headers:
+            headers[key] = msg[key] or ""
+    return headers
 
 
 def is_html(content):

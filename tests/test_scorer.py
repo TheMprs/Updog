@@ -131,7 +131,7 @@ class TestGenerateBullets:
         signals = {
             "spf": "pass", "dkim": "pass", "dmarc": "pass",
             "display_name_spoof": False, "reply_to_mismatch": False,
-            "typosquat_detected": False, "free_provider_spoof": False,
+            "typosquat_detected": False,
             "malicious_urls": [], "phishing_keywords": 0,
             "cloaking_detected": False, "mime_mismatch": False,
             "encrypted_archive": False, "risky_extension": False,
@@ -211,6 +211,7 @@ class TestAnalyze:
                               url=(0.0, {"total_urls": 0, "malicious_urls": []}),
                               attachment=(0.0, {"total_attachments": 0, "risky_extension": False,
                                                 "encrypted_archive": False, "mime_mismatch": False,
+                                                "pdf_active_content": False, "filenames": [],
                                                 "risky_files": []}),
                               content=(0.0, {"phishing_keywords": 0, "cloaking_detected": False,
                                              "detected_language": "en"})):
@@ -262,7 +263,7 @@ class TestAnalyze:
     def test_bullets_generated_from_signals(self):
         """Fired signals should appear as bullets in the response."""
         header_signals = {"spf": "fail", "dkim": "pass", "dmarc": "pass",
-                          "is_major_domain": False, "spam_score": 0.0}
+                          "is_major_domain": False}
         patches = self._patch_all_analyzers(header=(0.3, header_signals))
         with patches[0], patches[1], patches[2], patches[3], patches[4]:
             result = analyze("From: x@y.com\n\nHello")

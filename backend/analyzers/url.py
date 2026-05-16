@@ -2,14 +2,11 @@ import os
 import re
 import requests
 from urllib.parse import urlparse, parse_qs
-from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 from .utils import parse_email
 
 # tests conducted on url.py:
 # 1. test url against google's safe browsing API
-
-load_dotenv() # load .env file
 
 FILE_EXTENSIONS = {
     "jpg", "jpeg", "png", "gif", "bmp", "svg", "ico", "webp",

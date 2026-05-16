@@ -200,7 +200,8 @@ def analyze_content(email, attachment_filenames=None):
     # Scale: 5% density = 0.5 multiplier, 10%+ density = 1.0 multiplier
     density_multiplier = min(1.0, density / 0.10)
 
-    total_categories = max(len(ENGLISH_PHISHING_KEYWORDS), 1)
+    active_keywords = HEBREW_PHISHING_KEYWORDS if detected_lang == "he" else ENGLISH_PHISHING_KEYWORDS
+    total_categories = max(len(active_keywords), 1)
     category_ratio = phishing_count / total_categories
     keyword_score = min(0.7, category_ratio * density_multiplier)
 

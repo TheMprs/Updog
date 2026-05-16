@@ -10,7 +10,6 @@ from analyzers.sender import (
     check_domain_age,
     check_typosquatting,
     check_display_name_spoofing,
-    check_free_email_provider,
     check_reply_to_mismatch,
     analyze_sender,
 )
@@ -153,38 +152,6 @@ class TestCheckDisplayNameSpoofing:
         assert score == 0.9
 
 
-class TestCheckFreeEmailProvider:
-    """Tests for check_free_email_provider — only flags when a brand keyword is in the display name."""
-
-    def test_gmail_with_brand_display_name(self):
-        """Free provider + brand display name should score 0.3."""
-        assert check_free_email_provider("gmail.com", '"Google Support" <x@gmail.com>') == 0.3
-
-    def test_yahoo_with_brand_display_name(self):
-        """Yahoo + brand keyword in display name should score 0.3."""
-        assert check_free_email_provider("yahoo.com", '"PayPal Security" <x@yahoo.com>') == 0.3
-
-    def test_gmail_no_display_name(self):
-        """Free provider with no display name is not a spoof signal — 0.0."""
-        assert check_free_email_provider("gmail.com") == 0.0
-
-    def test_gmail_no_brand_keyword(self):
-        """Free provider with generic display name should return 0.0."""
-        assert check_free_email_provider("gmail.com", '"John Doe" <john@gmail.com>') == 0.0
-
-    def test_business_domain(self):
-        """Custom business domain should return 0.0 regardless of display name."""
-        assert check_free_email_provider("company.com", '"Apple Support" <x@company.com>') == 0.0
-
-    def test_empty_domain(self):
-        """Empty domain should return 0.0."""
-        assert check_free_email_provider("") == 0.0
-
-    def test_case_insensitive_domain(self):
-        """Domain check is case-insensitive."""
-        assert check_free_email_provider("Gmail.com", '"Google" <x@Gmail.com>') == 0.3
-
-
 class TestCheckReplyToMismatch:
     """Tests for check_reply_to_mismatch."""
 
@@ -261,17 +228,10 @@ class TestAnalyzeSender:
         assert signals["reply_to_mismatch"] is True
 
     def test_free_provider_alone_is_low_risk(self):
-        """Free provider with no brand display name should not score high and not flag spoof."""
+        """Free provider with no brand display name should not score high."""
         email = self._build_email("someone@gmail.com")
         score, signals = analyze_sender(email)
         assert score < 0.2
-        assert signals["free_provider_spoof"] is False
-
-    def test_free_provider_brand_spoof_detected(self):
-        """Free provider claiming to be a brand in the display name should flag spoof."""
-        email = self._build_email('"PayPal Security" <billing@gmail.com>')
-        score, signals = analyze_sender(email)
-        assert signals["free_provider_spoof"] is True
 
     def test_score_capped_at_one(self):
         """Combined worst-case signals should never exceed 1.0."""
@@ -294,7 +254,6 @@ class TestAnalyzeSender:
         _, signals = analyze_sender(email)
         assert "display_name_spoof" in signals
         assert "reply_to_mismatch" in signals
-        assert "free_provider_spoof" in signals
         assert "typosquat_detected" in signals
         assert "typosquat_target" in signals
         assert "from_domain" in signals

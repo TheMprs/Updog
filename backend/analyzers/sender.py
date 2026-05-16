@@ -1,21 +1,16 @@
 import re
 import concurrent.futures
 from datetime import datetime, timezone
-from .utils import parse_email
+from .utils import parse_email, parse_headers, MAJOR_DOMAINS
 
 import requests
 
 # tests conducted on sender.py:
-# 1. check domain age 
+# 1. check domain age
 # 2. test typosquatting of major brands
 # 3. check display name mismatch with brand keywords
-# 4. check email provider matching email sender 
-# 5. test reply-to mismatch 
-
-MAJOR_DOMAINS = {
-    "google.com", "microsoft.com", "apple.com", "amazon.com",
-    "paypal.com", "bank", "irs.gov", "fedex.com", "ups.com", "upwind"
-}
+# 4. check email provider matching email sender
+# 5. test reply-to mismatch
 
 # Display name keywords associated with major brands
 MAJOR_BRAND_KEYWORDS = {
@@ -257,21 +252,7 @@ def analyze_sender(email, auth=None):
     Returns:
         sender_score: 0.0 (safe) to 1.0 (malicious)
     """
-    parse_email(email)  # validate email format
-
-    email = email.replace('\r\n', '\n').replace('\r', '\n')
-    parts = email.split('\n\n', 1)
-    headers_str = parts[0] if parts else ""
-    headers_dict = {}
-    current_key = None
-    for line in headers_str.split('\n'):
-        if line and line[0] in (' ', '\t') and current_key:
-            headers_dict[current_key] += ' ' + line.strip()
-        elif ':' in line:
-            key, value = line.split(':', 1)
-            current_key = key.strip()
-            headers_dict[current_key] = value.strip()
-
+    headers_dict = parse_headers(email)
     from_header = headers_dict.get("From", "")
     reply_to_header = headers_dict.get("Reply-To", "")
     to_header = headers_dict.get("To", "")

@@ -96,10 +96,11 @@ def compute_score(scores: dict, has_urls: bool, has_attachments: bool) -> tuple:
         for k, w in active_weights.items()
     }
     floor_applied = floor > weighted_score
+    winning_floor = max(triggered_floors, key=lambda t: t[2]) if triggered_floors else None
     floor_reason = (
-        f"{triggered_floors[-1][0]} score {round(scores[triggered_floors[-1][0]] * 100)}% "
-        f">= {round(triggered_floors[-1][1] * 100)}% threshold → floor {floor}"
-        if floor_applied and triggered_floors else None
+        f"{winning_floor[0]} score {round(scores[winning_floor[0]] * 100)}% "
+        f">= {round(winning_floor[1] * 100)}% threshold → floor {floor}"
+        if floor_applied and winning_floor else None
     )
 
     calculation = {
@@ -127,7 +128,7 @@ def generate_bullets(signals: dict) -> list:
     ]
 
 
-_SAFE_HEADER_RESULT  = (0.0, {"spf": None, "dkim": None, "dmarc": None, "is_major_domain": False, "spam_score": 0.0})
+_SAFE_HEADER_RESULT  = (0.0, {"spf": None, "dkim": None, "dmarc": None, "is_major_domain": False})
 _SAFE_ATTACH_RESULT  = (0.0, {"risky_extension": False, "encrypted_archive": False, "mime_mismatch": False, "pdf_active_content": False, "risky_files": [], "filenames": [], "total_attachments": 0})
 _SAFE_URL_RESULT     = (0.0, {"malicious_urls": [], "total_urls": 0})
 _SAFE_CONTENT_RESULT = (0.0, {"phishing_keywords": 0, "detected_language": None, "high_keyword_density": False, "cloaking_detected": False, "cloaking_triggers": None, "caps_abuse": False, "large_money_amount": False})
