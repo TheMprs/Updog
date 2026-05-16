@@ -17,6 +17,10 @@ When you open an email in Gmail, UpDog's sidebar card shows:
 
 ---
 
+## Demo
+![Demo](demo.gif)
+---
+
 ## Architecture
 
 ```
